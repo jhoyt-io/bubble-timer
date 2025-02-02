@@ -9,7 +9,7 @@ import androidx.lifecycle.LiveData;
 import java.util.List;
 
 public class TimerViewModel extends AndroidViewModel {
-    private TimerRepository timerRepository;
+    private final TimerRepository timerRepository;
 
     private final LiveData<List<Timer>> allTimers;
 
