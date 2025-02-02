@@ -3,6 +3,7 @@ package io.jhoyt.bubbletimer.db;
 import android.content.Context;
 
 import androidx.annotation.NonNull;
+import androidx.room.AutoMigration;
 import androidx.room.Database;
 import androidx.room.Room;
 import androidx.room.RoomDatabase;
@@ -13,10 +14,17 @@ import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@Database(entities = {Timer.class}, version = 1)
+@Database(
+    version = 2,
+    entities = {Timer.class, ActiveTimer.class},
+    autoMigrations = {
+        @AutoMigration(from = 1, to = 2)
+    }
+)
 @TypeConverters({Converters.class})
 public abstract class AppDatabase extends RoomDatabase {
     public abstract TimerDao timerDao();
+    public abstract ActiveTimerDao activeTimerDao();
 
     private static volatile AppDatabase INSTANCE;
     private static final int NUMBER_OF_THREADS = 4;

@@ -108,6 +108,10 @@ public class Timer {
         return this.timerData.name;
     }
 
+    public String getUserId() {
+        return this.timerData.userId;
+    }
+
     public void addTime(Duration duration) {
         this.timerData = new TimerData(
                 timerData.id,
