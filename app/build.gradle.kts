@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("androidx.room")
 }
 
 android {
@@ -47,6 +48,9 @@ android {
         }
     }
 
+    room {
+        schemaDirectory("$projectDir/schemas")
+    }
 }
 
 dependencies {
@@ -71,6 +75,8 @@ dependencies {
     implementation("com.amplifyframework:aws-api:2.19.1")
     implementation("com.amplifyframework.ui:authenticator:1.2.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
+
+    implementation("androidx.lifecycle:lifecycle-service:2.6.1")
 
     implementation("androidx.core:core-ktx:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
