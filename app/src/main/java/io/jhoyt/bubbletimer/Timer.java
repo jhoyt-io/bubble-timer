@@ -1,5 +1,7 @@
 package io.jhoyt.bubbletimer;
 
+import androidx.annotation.Nullable;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -34,6 +36,24 @@ public class Timer {
                 duration,
                 null
         ));
+    }
+
+    @Override
+    public boolean equals(@Nullable Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (!(obj instanceof Timer)) {
+            return false;
+        }
+
+        Timer timer = (Timer) obj;
+        return this.timerData.equals(timer.getTimerData());
+    }
+
+    @Override
+    public int hashCode() {
+        return this.timerData.hashCode();
     }
 
     public static Timer timerFromJson(JSONObject jsonTimer) throws JSONException {

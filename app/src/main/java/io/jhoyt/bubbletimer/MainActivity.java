@@ -28,8 +28,10 @@ import com.amplifyframework.core.Amplify;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import io.jhoyt.bubbletimer.db.ActiveTimerViewModel;
 import io.jhoyt.bubbletimer.db.TimerViewModel;
 
 public class MainActivity extends AppCompatActivity {
@@ -38,7 +40,7 @@ public class MainActivity extends AppCompatActivity {
     private Handler timerHandler;
     private Runnable updater;
 
-    private Set<Timer> activeTimers;
+    private List<Timer> activeTimers;
     private String userId;
 
     private ActiveTimerViewModel activeTimerViewModel;
@@ -49,32 +51,7 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             String command = intent.getStringExtra("command");
 
-            if (command.equals("receiveActiveTimers")) {
-                long activeTimerCount = intent.getIntExtra("activeTimerCount", 0);
-
-                Set<Timer> activeTimers = new HashSet<>();
-                for (int i = 0; i < activeTimerCount; i++) {
-                    String id = intent.getStringExtra("id" + i);
-                    String userId = intent.getStringExtra("userId" + i);
-                    String name = intent.getStringExtra("name" + i);
-                    long totalDurationSeconds = intent.getLongExtra("totalDurationSeconds" + i, 0L);
-                    long remainingDurationSeconds = intent.getLongExtra("remainingDurationSeconds" + i, 0L);
-                    String timerEnd = intent.getStringExtra("timerEnd" + i);
-
-                    Timer newTimer = new Timer(new TimerData(
-                            id,
-                            userId,
-                            name,
-                            (intent.hasExtra("totalDurationSeconds" + i)) ? Duration.ofSeconds(totalDurationSeconds) : null,
-                            (intent.hasExtra("remainingDurationSeconds" + i)) ? Duration.ofSeconds(remainingDurationSeconds) : null,
-                            (intent.hasExtra("timerEnd" + i)) ? LocalDateTime.parse(timerEnd): null
-                    ));
-                    activeTimers.add(newTimer);
-                }
-                activeTimerViewModel.resetActiveTimers(activeTimers, activeTimers.isEmpty() ?
-                        null :
-                        (Timer)activeTimers.toArray()[0]);
-            } else if (command.equals("sendAuthToken")) {
+            if (command.equals("sendAuthToken")) {
                 // Fetch auth token and send to the foreground service
                 Amplify.Auth.fetchAuthSession(authSession -> {
                     AWSCognitoAuthSession cognitoAuthSession = (AWSCognitoAuthSession) authSession;
@@ -172,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
         startForegroundService(intent);
 
         this.activeTimerViewModel = new ViewModelProvider(this).get(ActiveTimerViewModel.class);
-        activeTimerViewModel.getActiveTimers().observe(this, timers -> {
+        this.activeTimerViewModel.getAllActiveTimers().observe(this, timers -> {
             this.activeTimers = timers;
         });
 
@@ -183,10 +160,6 @@ public class MainActivity extends AppCompatActivity {
 
         // Request active timers from the service, if there are any
         Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
-        message.putExtra("command", "sendActiveTimers");
-        LocalBroadcastManager.getInstance(this).sendBroadcast(message);
-
-        message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
         message.putExtra("command", "sendAuthToken");
         LocalBroadcastManager.getInstance(this).sendBroadcast(message);
     }
@@ -197,13 +170,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         Timer timer = new Timer(userId, name, duration);
-
         timer.unpause();
-        sendActivateTimer(timer);
-    }
 
-    public void stopTimer(Timer timer) {
-        sendStopTimer(timer);
+        this.activeTimerViewModel.insert(timer);
     }
 
     public void deleteTimer(int id) {
@@ -222,38 +191,6 @@ public class MainActivity extends AppCompatActivity {
                 LocalBroadcastManager.getInstance(this).sendBroadcast(message);
             }
         }
-    }
-
-    private void sendActivateTimer(Timer timer) {
-        Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
-        message.putExtra("command", "activateTimer");
-
-        TimerData timerData = timer.getTimerData();
-
-        message.putExtra("id", timerData.id);
-        message.putExtra("userId", timerData.userId);
-        message.putExtra("name", timerData.name);
-        if (timerData.totalDuration != null) {
-            message.putExtra("totalDurationSeconds", timerData.totalDuration.getSeconds());
-        }
-        if (timerData.remainingDurationWhenPaused != null) {
-            message.putExtra("remainingDurationSeconds", timerData.remainingDurationWhenPaused.getSeconds());
-        }
-        if (timerData.timerEnd != null) {
-            message.putExtra("timerEnd", timerData.timerEnd.toString());
-        }
-
-        LocalBroadcastManager.getInstance(this).sendBroadcast(message);
-    }
-
-    private void sendStopTimer(Timer timer) {
-        Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
-        message.putExtra("command", "stopTimer");
-
-        TimerData timerData = timer.getTimerData();
-        message.putExtra("id", timerData.id);
-
-        LocalBroadcastManager.getInstance(this).sendBroadcast(message);
     }
 
     @Override

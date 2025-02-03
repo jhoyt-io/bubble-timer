@@ -4,6 +4,8 @@ import android.app.Application;
 
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Observer;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,34 +18,43 @@ import io.jhoyt.bubbletimer.TimerConverter;
 public class ActiveTimerRepository {
     private ActiveTimerDao activeTimerDao;
     private LiveData<List<ActiveTimer>> allActiveTimersLiveData;
-    private List<Timer> allActiveTimers;
+    private MutableLiveData<List<Timer>> timersLiveData;
     private Map<String, Timer> timersById;
+    private Observer observer;
 
-
-    public ActiveTimerRepository(LifecycleOwner owner, Application application) {
+    public ActiveTimerRepository(Application application) {
         AppDatabase db = AppDatabase.getDatabase(application);
 
         this.timersById = new HashMap<>();
+        this.timersLiveData = new MutableLiveData<>(List.of());
 
         this.activeTimerDao = db.activeTimerDao();
         this.allActiveTimersLiveData = this.activeTimerDao.getAll();
-        this.allActiveTimersLiveData.observe(owner, activeTimers -> {
-            this.allActiveTimers = activeTimers.stream()
+        this.observer = (Observer<List<ActiveTimer>>) activeTimers -> {
+            List<Timer> timers = activeTimers.stream()
                     .map(TimerConverter::fromActiveTimer)
                     .collect(Collectors.toList());
-            this.timersById.clear();
-            this.allActiveTimers.forEach(timer -> {
-                this.timersById.put(timer.getId(), timer);
-            });
-        });
+            ActiveTimerRepository.this.timersById.clear();
+            timers.forEach(timer -> ActiveTimerRepository.this.timersById.put(timer.getId(), timer));
+            ActiveTimerRepository.this.timersLiveData.setValue(timers);
+        };
+
+        this.allActiveTimersLiveData.observeForever(observer);
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+
+        this.allActiveTimersLiveData.removeObserver(observer);
     }
 
     public Timer getById(String id) {
         return timersById.get(id);
     }
 
-    public List<Timer> getAllActiveTimers() {
-        return allActiveTimers;
+    public LiveData<List<Timer>> getAllActiveTimers() {
+        return this.timersLiveData;
     }
 
     public void insert(Timer timer) {

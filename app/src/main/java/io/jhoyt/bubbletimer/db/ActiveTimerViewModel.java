@@ -1,10 +1,12 @@
 package io.jhoyt.bubbletimer.db;
 
+import android.app.Activity;
 import android.app.Application;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.Observer;
 
 import java.util.List;
 
@@ -12,21 +14,20 @@ import io.jhoyt.bubbletimer.Timer;
 
 public class ActiveTimerViewModel extends AndroidViewModel {
     private final ActiveTimerRepository activeTimerRepository;
-
-    private final LiveData<List<ActiveTimer>> allActiveTimers;
+    private final LiveData<List<Timer>> allActiveTimers;
 
     public ActiveTimerViewModel(@NonNull Application application) {
         super(application);
 
-        activeTimerRepository = null;
-        allActiveTimers = null;
+        this.activeTimerRepository = new ActiveTimerRepository(application);
+        this.allActiveTimers = activeTimerRepository.getAllActiveTimers();
     }
 
     public Timer getById(String id) {
         return activeTimerRepository.getById(id);
     }
 
-    public LiveData<List<ActiveTimer>> getAllActiveTimers() {
+    public LiveData<List<Timer>> getAllActiveTimers() {
         return allActiveTimers;
     }
 

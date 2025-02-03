@@ -19,9 +19,12 @@ import android.os.VibratorManager;
 import android.provider.Settings.Secure;
 import android.util.Log;
 
+import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.lifecycle.LifecycleService;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.ListUpdateCallback;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -29,6 +32,7 @@ import org.json.JSONObject;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -36,7 +40,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import io.jhoyt.bubbletimer.db.ActiveTimer;
 import io.jhoyt.bubbletimer.db.ActiveTimerRepository;
 
 public class ForegroundService extends LifecycleService implements Window.BubbleEventListener {
@@ -57,10 +60,13 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
     private final WebsocketManager websocketManager;
 
-    private final ActiveTimerRepository activeTimerRepository;
-    private final Map<String, Window> windowsByTimerId;
+    private ActiveTimerRepository activeTimerRepository;
+    private List<Timer> activeTimers;
+    private Map<String, Window> windowsByTimerId;
 
     private Window expandedWindow;
+
+    private Boolean isOverlayShown = false;
 
     private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -73,10 +79,10 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 return;
             }
 
-            List<Timer> timers = activeTimerRepository.getAllActiveTimers();
             if (command.equals("showOverlay")) {
-                if (!timers.isEmpty()) {
-                    timers.forEach(timer -> {
+                isOverlayShown = true;
+                if (!activeTimers.isEmpty()) {
+                    activeTimers.forEach(timer -> {
                         if (windowsByTimerId.containsKey(timer.getId())) {
                             windowsByTimerId.get(timer.getId())
                                     .open(timer, ForegroundService.this);
@@ -87,60 +93,15 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                     notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
                 }
             } else if (command.equals("hideOverlay")) {
-                if (!timers.isEmpty()) {
-                    timers.forEach(timer -> {
+                isOverlayShown = false;
+                if (!activeTimers.isEmpty()) {
+                    activeTimers.forEach(timer -> {
                         if (windowsByTimerId.containsKey(timer.getId())) {
                             windowsByTimerId.get(timer.getId()).close();
                         }
                     });
                 }
                 ForegroundService.this.expandedWindow.close();
-            } else if (command.equals("sendActiveTimers")) {
-                sendActiveTimers();
-            } else if (command.equals("activateTimer")) {
-                String id = intent.getStringExtra("id");
-                String userId = intent.getStringExtra("userId");
-                String name = intent.getStringExtra("name");
-                long totalDurationSeconds = intent.getLongExtra("totalDurationSeconds", 0L);
-                long remainingDurationSeconds = intent.getLongExtra("remainingDurationSeconds", 0L);
-                String timerEnd = intent.getStringExtra("timerEnd");
-
-                Timer newTimer = new Timer(new TimerData(
-                        id,
-                        userId,
-                        name,
-                        (intent.hasExtra("totalDurationSeconds")) ? Duration.ofSeconds(totalDurationSeconds) : null,
-                        (intent.hasExtra("remainingDurationSeconds")) ? Duration.ofSeconds(remainingDurationSeconds) : null,
-                        (intent.hasExtra("timerEnd")) ? LocalDateTime.parse(timerEnd): null
-                ));
-                ForegroundService.this.activeTimerRepository.insert(newTimer);
-                ForegroundService.this.windowsByTimerId.put(newTimer.getId(), new Window(getApplicationContext(), false));
-
-                sendActiveTimers();
-                sendUpdateTimerToWebsocket(newTimer, command);
-            } else if (command.equals("stopTimer")) {
-                String id = intent.getStringExtra("id");
-
-                Timer timer = ForegroundService.this.activeTimerRepository.getById(id);
-                if (null != timer) {
-                    ForegroundService.this.activeTimerRepository.deleteById(timer.getId());
-                    sendStopTimerToWebsocket(id, timer.getSharedWith());
-                }
-
-                if (windowsByTimerId.containsKey(id)) {
-                    windowsByTimerId.get(id).close();
-                    windowsByTimerId.remove(id);
-                }
-
-                if (vibrator != null) {
-                    vibrator.cancel();
-                    vibrator = null;
-                } else if (vibratorManager != null) {
-                    // just in case...
-                    vibratorManager.cancel();
-                }
-
-                sendActiveTimers();
             } else if (command.equals("receiveAuthToken")) {
                 Log.i("ForegroundService", "Auth token received");
 
@@ -222,13 +183,11 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
     }
 
     private void sendActiveTimers() {
-        List<Timer> timers = activeTimerRepository.getAllActiveTimers();
-
         Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
         message.putExtra("command", "receiveActiveTimers");
-        message.putExtra("activeTimerCount", timers.size());
+        message.putExtra("activeTimerCount", activeTimers.size());
         int i = 0;
-        Iterator<Timer> it = timers.iterator();
+        Iterator<Timer> it = activeTimers.iterator();
         while (it.hasNext()) {
             Timer timer = it.next();
 
@@ -250,7 +209,6 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
             i++;
         }
 
-
         LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
     }
 
@@ -259,8 +217,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         this.timerHandler = new Handler();
         this.expandedWindow = null;
         this.vibrator = null;
-        this.activeTimerRepository = new ActiveTimerRepository(this, getApplication());
-        this.windowsByTimerId = new HashMap<>();
+
         this.websocketManager = new WebsocketManager(
                 new WebsocketManager.WebsocketMessageListener() {
                     @Override
@@ -294,20 +251,6 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                         message.putExtra("command", "stopTimer");
                         message.putExtra("id", timerId);
                         LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(message);
-
-                        /*
-                        if (timersById.containsKey(timerId)) {
-                            timers.remove(timersById.get(timerId));
-                            timersById.remove(timerId);
-                        }
-
-                        if (windowsByTimerId.containsKey(timerId)) {
-                            windowsByTimerId.get(timerId).close();
-                            windowsByTimerId.remove(timerId);
-                        }
-
-                        sendActiveTimers();
-                         */
                     }
                 }
         );
@@ -321,6 +264,68 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
     @Override
     public void onCreate() {
         super.onCreate();
+
+        this.activeTimerRepository = new ActiveTimerRepository(getApplication());
+        this.activeTimers = new ArrayList<>();
+        this.windowsByTimerId = new HashMap<>();
+
+        this.activeTimerRepository.getAllActiveTimers().observe(this, timers -> {
+            DiffUtil.calculateDiff(
+                    new DiffUtil.Callback() {
+                        @Override
+                        public int getOldListSize() {
+                            return activeTimers.size();
+                        }
+
+                        @Override
+                        public int getNewListSize() {
+                            return timers.size();
+                        }
+
+                        @Override
+                        public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                            return activeTimers.get(oldItemPosition).getId().equals(timers.get(newItemPosition).getId());
+                        }
+
+                        @Override
+                        public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                            return activeTimers.get(oldItemPosition).equals(timers.get(newItemPosition));
+                        }
+                    }
+            ).dispatchUpdatesTo(new ListUpdateCallback() {
+                @Override
+                public void onInserted(int position, int count) {
+                    timers.subList(position, position + count).forEach(timer -> {
+                        Window window = new Window(getApplicationContext(), false);
+
+                        if (isOverlayShown) {
+                            window.open(timer, ForegroundService.this);
+                        }
+
+                        windowsByTimerId.put(timer.getId(), window);
+                    });
+                }
+
+                @Override
+                public void onRemoved(int position, int count) {
+                    activeTimers.subList(position, position + count).forEach(timer -> {
+                        windowsByTimerId.get(timer.getId()).close();
+                        windowsByTimerId.remove(timer.getId());
+                    });
+                }
+
+                @Override
+                public void onMoved(int fromPosition, int toPosition) {
+
+                }
+
+                @Override
+                public void onChanged(int position, int count, @Nullable Object payload) {
+
+                }
+            });
+            this.activeTimers = List.copyOf(timers);
+        });
 
         Intent notificationIntent = new Intent(getApplicationContext(), MainActivity.class);
         //notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -368,16 +373,15 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
             }
 
             boolean shouldAlarm = false;
-            List<Timer> timers = this.activeTimerRepository.getAllActiveTimers();
-            if (timers != null && !timers.isEmpty()) {
-                String name = timers.get(0).getName();
-                Duration remainingDuration = timers.get(0).getRemainingDuration();
+            if (!activeTimers.isEmpty()) {
+                String name = activeTimers.get(0).getName();
+                Duration remainingDuration = activeTimers.get(0).getRemainingDuration();
                 String text = "[" + name + "] " + DurationUtil.getFormattedDuration(remainingDuration);
 
                 notificationBuilder.setContentText(text);
                 notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
 
-                for (Timer timer : timers) {
+                for (Timer timer : activeTimers) {
                     if (timer.getRemainingDuration().isNegative() || timer.getRemainingDuration().isZero()) {
                         shouldAlarm = true;
                         break;
@@ -453,10 +457,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         }
 
         this.activeTimerRepository.deleteById(timer.getId());
-        if (windowsByTimerId.containsKey(timer.getId())) {
-            windowsByTimerId.get(timer.getId()).close();
-            windowsByTimerId.remove(timer.getId());
-        }
+        sendStopTimerToWebsocket(timer.getId(), timer.getSharedWith());
 
         notificationBuilder.setContentText("No active timers.");
         notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
