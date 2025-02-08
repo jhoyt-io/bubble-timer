@@ -1,5 +1,7 @@
 package io.jhoyt.bubbletimer;
 
+import androidx.annotation.NonNull;
+
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -32,5 +34,16 @@ public class TimerData {
     @Override
     public int hashCode() {
         return Objects.hash(id, userId, name, totalDuration, remainingDurationWhenPaused, timerEnd);
+    }
+
+    public TimerData copy() {
+        return new TimerData(
+                this.id,
+                this.userId,
+                this.name,
+                this.totalDuration,
+                this.remainingDurationWhenPaused,
+                this.timerEnd
+        );
     }
 }

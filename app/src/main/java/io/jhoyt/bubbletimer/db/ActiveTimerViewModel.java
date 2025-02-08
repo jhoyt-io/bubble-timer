@@ -1,12 +1,10 @@
 package io.jhoyt.bubbletimer.db;
 
-import android.app.Activity;
 import android.app.Application;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
-import androidx.lifecycle.Observer;
 
 import java.util.List;
 

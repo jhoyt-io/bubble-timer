@@ -1,5 +1,6 @@
 package io.jhoyt.bubbletimer;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.json.JSONArray;
@@ -54,6 +55,10 @@ public class Timer {
     @Override
     public int hashCode() {
         return this.timerData.hashCode();
+    }
+
+    public Timer copy() {
+        return new Timer(this.timerData.copy());
     }
 
     public static Timer timerFromJson(JSONObject jsonTimer) throws JSONException {

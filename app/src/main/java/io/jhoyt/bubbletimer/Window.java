@@ -300,7 +300,6 @@ public class Window {
                             params.setCanPlayMoveAnimation(true);
                             windowManager.updateViewLayout(view, params);
 
-                            bubbleEventListener.onTimerStopped(timer.getTimer());
                             bubbleEventListener.onBubbleDismiss(timer.getTimer());
 
                             Window.this.close();

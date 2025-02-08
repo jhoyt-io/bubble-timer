@@ -197,17 +197,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        {
-            Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
-            message.putExtra("command", "hideOverlay");
-            LocalBroadcastManager.getInstance(this).sendBroadcast(message);
-        }
-
-        {
-            Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
-            message.putExtra("command", "sendActiveTimers");
-            LocalBroadcastManager.getInstance(this).sendBroadcast(message);
-        }
+        Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
+        message.putExtra("command", "hideOverlay");
+        LocalBroadcastManager.getInstance(this).sendBroadcast(message);
     }
 
     @Override

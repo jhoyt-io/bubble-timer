@@ -26,19 +26,11 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListUpdateCallback;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import io.jhoyt.bubbletimer.db.ActiveTimerRepository;
 
@@ -120,97 +112,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         }
     };
 
-    private void updateLocalTimerList(Timer timer) {
-        final String id = timer.getId();
-        Timer storedTimer = this.activeTimerRepository.getById(id);
-        if (null == storedTimer) {
-            this.activeTimerRepository.insert(timer);
-        } else {
-            this.activeTimerRepository.update(timer);
-        }
 
-        if (windowsByTimerId.containsKey(id)) {
-            Window window = windowsByTimerId.get(id);
-            if (window.isOpen()) {
-                window.open(timer, this);
-            }
-        } else {
-            windowsByTimerId.put(id, new Window(getApplicationContext(), false));
-        }
-    }
-
-    private void sendUpdateTimerToWebsocket(Timer timer, String updateReason) {
-        JSONArray shareWithArray = new JSONArray();
-        timer.getSharedWith().forEach(shareWithArray::put);
-
-        String webSocketRequestString = null;
-        try {
-            webSocketRequestString = new JSONObject()
-                    .put("action", "sendmessage")
-                    .put("data", new JSONObject()
-                            .put("type", "updateTimer")
-                            .put("reason", updateReason)
-                            .put("shareWith", shareWithArray)
-                            .put("timer", Timer.timerToJson(timer))
-                    )
-                    .toString();
-        } catch (Exception e) {
-            Log.i("ForegroundService", "Websocket, sendmessage failed", e);
-        }
-
-        websocketManager.sendMessage(webSocketRequestString);
-    }
-
-    private void sendStopTimerToWebsocket(String timerId, Set<String> sharedWith) {
-        JSONArray shareWithArray = new JSONArray();
-        sharedWith.forEach(shareWithArray::put);
-
-        String webSocketRequestString = null;
-        try {
-            webSocketRequestString = new JSONObject()
-                    .put("action", "sendmessage")
-                    .put("data", new JSONObject()
-                            .put("type", "stopTimer")
-                            .put("shareWith", shareWithArray)
-                            .put("timerId", timerId)
-                    )
-                    .toString();
-        } catch (Exception e) {
-            Log.i("ForegroundService", "Websocket, sendmessage failed", e);
-        }
-
-        websocketManager.sendMessage(webSocketRequestString);
-    }
-
-    private void sendActiveTimers() {
-        Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
-        message.putExtra("command", "receiveActiveTimers");
-        message.putExtra("activeTimerCount", activeTimers.size());
-        int i = 0;
-        Iterator<Timer> it = activeTimers.iterator();
-        while (it.hasNext()) {
-            Timer timer = it.next();
-
-            TimerData timerData = timer.getTimerData();
-
-            message.putExtra("id" + i, timerData.id);
-            message.putExtra("userId" + i, timerData.userId);
-            message.putExtra("name" + i, timerData.name);
-            if (timerData.totalDuration != null) {
-                message.putExtra("totalDurationSeconds" + i, timerData.totalDuration.getSeconds());
-            }
-            if (timerData.remainingDurationWhenPaused != null) {
-                message.putExtra("remainingDurationSeconds" + i, timerData.remainingDurationWhenPaused.getSeconds());
-            }
-            if (timerData.timerEnd != null) {
-                message.putExtra("timerEnd" + i, timerData.timerEnd.toString());
-            }
-
-            i++;
-        }
-
-        LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
-    }
 
     public ForegroundService() {
         Log.i("ForegroundService", "Constructing");
@@ -228,31 +130,9 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                         message.putExtra("command", "sendAuthToken");
                         LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
                     }
-
-                    @Override
-                    public void onActiveTimerList(JSONArray timerList) throws JSONException {
-                        for (int i = 0; i < timerList.length(); i++) {
-                            updateLocalTimerList(Timer.timerFromJson(timerList.getJSONObject(i)));
-                        }
-
-                        sendActiveTimers();
-                    }
-
-                    @Override
-                    public void onUpdateTimer(JSONObject timer) throws JSONException {
-                        updateLocalTimerList(Timer.timerFromJson(timer));
-
-                        sendActiveTimers();
-                    }
-
-                    @Override
-                    public void onStopTimer(String timerId) throws JSONException {
-                        Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
-                        message.putExtra("command", "stopTimer");
-                        message.putExtra("id", timerId);
-                        LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(message);
-                    }
-                }
+                },
+                activeTimerRepository,
+                this
         );
     }
 
@@ -308,6 +188,12 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
                 @Override
                 public void onRemoved(int position, int count) {
+                    // stop vibrator every time - if the timer is still alarming it will start again
+                    if (vibrator != null) {
+                        vibrator.cancel();
+                        vibrator = null;
+                    }
+
                     activeTimers.subList(position, position + count).forEach(timer -> {
                         windowsByTimerId.get(timer.getId()).close();
                         windowsByTimerId.remove(timer.getId());
@@ -321,7 +207,8 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
                 @Override
                 public void onChanged(int position, int count, @Nullable Object payload) {
-
+                    activeTimers.subList(position, position + count).forEach(timer -> {
+                    });
                 }
             });
             this.activeTimers = List.copyOf(timers);
@@ -426,41 +313,23 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         return super.onStartCommand(intent, flags, startId);
     }
 
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-
-        windowsByTimerId.forEach((timerId, window) -> {
-            window.close();
-        });
-
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver);
-
-        websocketManager.close();
-    }
 
     @Override
     public void onTimerUpdated(Timer timer) {
-        sendUpdateTimerToWebsocket(timer, "Updated by button press");
+        this.activeTimerRepository.update(timer);
     }
 
     @Override
     public void onTimerStopped(Timer timer) {
-        sendStopTimerToWebsocket(timer.getId(), timer.getSharedWith());
+        this.activeTimerRepository.deleteById(timer.getId());
+
+        notificationBuilder.setContentText("No active timers.");
+        notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
     }
 
     @Override
     public void onBubbleDismiss(Timer timer) {
-        if (vibrator != null) {
-            vibrator.cancel();
-            vibrator = null;
-        }
-
-        this.activeTimerRepository.deleteById(timer.getId());
-        sendStopTimerToWebsocket(timer.getId(), timer.getSharedWith());
-
-        notificationBuilder.setContentText("No active timers.");
-        notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
+        this.onTimerStopped(timer);
     }
 
     @Override
@@ -478,5 +347,18 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         } else if (expandedWindow != null && expandedWindow.isOpen()) {
             expandedWindow.close();
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        windowsByTimerId.forEach((timerId, window) -> {
+            window.close();
+        });
+
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver);
+
+        websocketManager.close();
     }
 }
