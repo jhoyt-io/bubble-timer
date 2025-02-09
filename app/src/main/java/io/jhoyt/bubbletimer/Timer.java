@@ -18,13 +18,13 @@ public class Timer {
 
     private Set<String> sharedWith;
 
-    public Timer(TimerData timerData) {
+    public Timer(TimerData timerData, Set<String> sharedWith) {
         this.timerData = timerData;
-        this.sharedWith = new HashSet<>();
+        this.sharedWith = sharedWith;
     }
 
     public Timer() {
-        this(new TimerData(String.valueOf(UUID.randomUUID()), null, null, null, null, null));
+        this(new TimerData(String.valueOf(UUID.randomUUID()), null, null, null, null, null), new HashSet<>());
     }
 
 
@@ -36,7 +36,7 @@ public class Timer {
                 duration,
                 duration,
                 null
-        ));
+        ), new HashSet<>());
     }
 
     @Override
@@ -49,7 +49,9 @@ public class Timer {
         }
 
         Timer timer = (Timer) obj;
-        return this.timerData.equals(timer.getTimerData());
+        return this.timerData.equals(timer.getTimerData()) &&
+                this.sharedWith.containsAll(timer.getSharedWith()) &&
+                timer.getSharedWith().containsAll(this.sharedWith);
     }
 
     @Override
@@ -58,7 +60,7 @@ public class Timer {
     }
 
     public Timer copy() {
-        return new Timer(this.timerData.copy());
+        return new Timer(this.timerData.copy(), new HashSet<>(this.getSharedWith()));
     }
 
     public static Timer timerFromJson(JSONObject jsonTimer) throws JSONException {
@@ -75,7 +77,7 @@ public class Timer {
                 jsonTimer.has("timerEnd") ?
                         LocalDateTime.parse(jsonTimer.getString("timerEnd"))
                         : null
-        ));
+        ), new HashSet<>());
         JSONArray sharedWithJson = jsonTimer.getJSONArray("sharedWith");
         for(int i=0; i<sharedWithJson.length(); i++) {
             timer.shareWith(sharedWithJson.getString(i));

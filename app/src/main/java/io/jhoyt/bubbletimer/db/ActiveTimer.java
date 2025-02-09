@@ -1,6 +1,7 @@
 package io.jhoyt.bubbletimer.db;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
@@ -28,4 +29,7 @@ public class ActiveTimer {
 
     @ColumnInfo(name = "timerEnd")
     public LocalDateTime timerEnd;
+
+    @ColumnInfo(name = "sharedWithString", defaultValue = "")
+    public String sharedWithString;
 }

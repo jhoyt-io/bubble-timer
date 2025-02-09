@@ -1,5 +1,8 @@
 package io.jhoyt.bubbletimer;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import io.jhoyt.bubbletimer.db.ActiveTimer;
 
 public class TimerConverter {
@@ -11,7 +14,9 @@ public class TimerConverter {
                 activeTimer.totalDuration,
                 activeTimer.remainingDurationWhenPaused,
                 activeTimer.timerEnd
-        ));
+        ), activeTimer.sharedWithString == null ?
+                Set.of()
+                : Set.of(activeTimer.sharedWithString.split("#~#")));
     }
 
     public static ActiveTimer toActiveTimer(Timer timer) {
@@ -24,6 +29,7 @@ public class TimerConverter {
         activeTimer.totalDuration = timerData.totalDuration;
         activeTimer.remainingDurationWhenPaused = timerData.remainingDurationWhenPaused;
         activeTimer.timerEnd = timerData.timerEnd;
+        activeTimer.sharedWithString = String.join("#~#", timer.getSharedWith());
 
         return activeTimer;
     }

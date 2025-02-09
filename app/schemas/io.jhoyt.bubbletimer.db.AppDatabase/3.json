@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 2,
-    "identityHash": "f121b19ce8417295e6b519d0353b5cb3",
+    "version": 3,
+    "identityHash": "f0d6755ae343dc5004e3e6184c35d72d",
     "entities": [
       {
         "tableName": "Timer",
@@ -38,7 +38,7 @@
       },
       {
         "tableName": "ActiveTimer",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT, `userId` TEXT, `totalDuration` INTEGER, `remainingDurationWhenPaused` INTEGER, `timerEnd` TEXT, `sharedWithString` TEXT, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT, `userId` TEXT, `totalDuration` INTEGER, `remainingDurationWhenPaused` INTEGER, `timerEnd` TEXT, `sharedWithString` TEXT DEFAULT '', PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -80,7 +80,8 @@
             "fieldPath": "sharedWithString",
             "columnName": "sharedWithString",
             "affinity": "TEXT",
-            "notNull": false
+            "notNull": false,
+            "defaultValue": "''"
           }
         ],
         "primaryKey": {
@@ -96,7 +97,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f121b19ce8417295e6b519d0353b5cb3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f0d6755ae343dc5004e3e6184c35d72d')"
     ]
   }
 }

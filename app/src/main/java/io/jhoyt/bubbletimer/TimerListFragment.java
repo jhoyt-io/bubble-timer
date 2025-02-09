@@ -14,6 +14,7 @@ import android.widget.LinearLayout;
 
 import java.time.Duration;
 import java.util.Comparator;
+import java.util.HashSet;
 
 import io.jhoyt.bubbletimer.db.TimerViewModel;
 
@@ -95,6 +96,7 @@ public class TimerListFragment extends Fragment {
                 View cardTimer = inflater.inflate(R.layout.card_timer, listLayout, false);
 
                 TimerView timerView = cardTimer.findViewById(R.id.timer);
+                // TODO: this seems to be the wrong use of these types
                 timerView.setTimer(new Timer(new TimerData(
                         "" + timer.id,
                         "",
@@ -102,7 +104,7 @@ public class TimerListFragment extends Fragment {
                         timer.duration,
                         null,
                         null
-                )));
+                ), new HashSet<>()));
 
                 ((Button)cardTimer.findViewById(R.id.startButton)).setOnClickListener(new View.OnClickListener() {
                     @Override
