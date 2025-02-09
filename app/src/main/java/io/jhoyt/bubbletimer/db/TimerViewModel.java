@@ -24,6 +24,10 @@ public class TimerViewModel extends AndroidViewModel {
         return allTimers;
     }
 
+    public LiveData<List<Timer>> getAllTimersWithTag(String tag) {
+        return timerRepository.getAllTimersWithTag(tag);
+    }
+
     public void insert(Timer timer) {
         timerRepository.insert(timer);
     }

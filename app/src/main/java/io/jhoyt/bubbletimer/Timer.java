@@ -24,18 +24,19 @@ public class Timer {
     }
 
     public Timer() {
-        this(new TimerData(String.valueOf(UUID.randomUUID()), null, null, null, null, null), new HashSet<>());
+        this(new TimerData(String.valueOf(UUID.randomUUID()), null, null, null, null, null, Set.of()), new HashSet<>());
     }
 
 
-    public Timer(String userId, String name, Duration duration) {
+    public Timer(String userId, String name, Duration duration, Set<String> tags) {
         this(new TimerData(
                 String.valueOf(UUID.randomUUID()),
                 userId,
                 name,
                 duration,
                 duration,
-                null
+                null,
+                tags
         ), new HashSet<>());
     }
 
@@ -64,6 +65,14 @@ public class Timer {
     }
 
     public static Timer timerFromJson(JSONObject jsonTimer) throws JSONException {
+        Set<String> tags = new HashSet<>();
+
+        if (jsonTimer.has("tags")) {
+            JSONArray tagsJson = jsonTimer.getJSONArray("tags");
+            for(int i=0; i<tagsJson.length(); i++) {
+                tags.add(tagsJson.getString(i));
+            }
+        }
         Timer timer = new Timer(new TimerData(
                 jsonTimer.getString("id"),
                 jsonTimer.getString("userId"),
@@ -76,7 +85,8 @@ public class Timer {
                         : null,
                 jsonTimer.has("timerEnd") ?
                         LocalDateTime.parse(jsonTimer.getString("timerEnd"))
-                        : null
+                        : null,
+                tags
         ), new HashSet<>());
         JSONArray sharedWithJson = jsonTimer.getJSONArray("sharedWith");
         for(int i=0; i<sharedWithJson.length(); i++) {
@@ -97,6 +107,7 @@ public class Timer {
         jsonTimer.put("remainingDuration", timerData.remainingDurationWhenPaused);
         jsonTimer.put("timerEnd",  timerData.timerEnd);
         jsonTimer.put("sharedWith", new JSONArray(timer.getSharedWith()));
+        jsonTimer.put("tags", new JSONArray(timer.getTags()));
         return jsonTimer;
     }
 
@@ -114,6 +125,22 @@ public class Timer {
         );
     }
      */
+
+    public Set<String> getTags() {
+        return this.timerData.tags;
+    }
+
+    public void setTags(Set<String> tags) {
+        this.timerData = new TimerData(
+                timerData.id,
+                timerData.userId,
+                timerData.name,
+                timerData.totalDuration,
+                timerData.remainingDurationWhenPaused,
+                timerData.timerEnd,
+                Set.copyOf(tags)
+        );
+    }
 
     public Set<String> getSharedWith() {
         return this.sharedWith;
@@ -153,7 +180,8 @@ public class Timer {
                         : timerData.remainingDurationWhenPaused,
                 (timerData.timerEnd == null) ?
                         timerData.timerEnd
-                        : timerData.timerEnd.plus(duration)
+                        : timerData.timerEnd.plus(duration),
+                timerData.tags
         );
     }
 
@@ -173,7 +201,8 @@ public class Timer {
                 timerData.name,
                 timerData.totalDuration,
                 getRemainingDuration(),
-                null
+                null,
+                timerData.tags
         );
     }
 
@@ -189,7 +218,8 @@ public class Timer {
                 timerData.name,
                 timerData.totalDuration,
                 null,
-                LocalDateTime.now().plus(this.timerData.remainingDurationWhenPaused)
+                LocalDateTime.now().plus(this.timerData.remainingDurationWhenPaused),
+                timerData.tags
         );
     }
 

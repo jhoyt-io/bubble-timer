@@ -3,7 +3,6 @@ package io.jhoyt.bubbletimer.db;
 import android.app.Application;
 
 import androidx.lifecycle.LiveData;
-import androidx.room.Room;
 
 import java.util.List;
 
@@ -20,6 +19,10 @@ public class TimerRepository {
 
     public LiveData<List<Timer>> getAllTimers() {
         return allTimers;
+    }
+
+    public LiveData<List<Timer>> getAllTimersWithTag(String tag) {
+        return this.timerDao.getAllWithTag(tag);
     }
 
     public void insert(Timer timer) {

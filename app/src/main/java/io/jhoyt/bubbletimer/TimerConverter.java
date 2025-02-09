@@ -13,7 +13,10 @@ public class TimerConverter {
                 activeTimer.name,
                 activeTimer.totalDuration,
                 activeTimer.remainingDurationWhenPaused,
-                activeTimer.timerEnd
+                activeTimer.timerEnd,
+                activeTimer.tagsString == null ?
+                        Set.of()
+                        : Set.of(activeTimer.tagsString.split("#~#"))
         ), activeTimer.sharedWithString == null ?
                 Set.of()
                 : Set.of(activeTimer.sharedWithString.split("#~#")));
@@ -30,6 +33,7 @@ public class TimerConverter {
         activeTimer.remainingDurationWhenPaused = timerData.remainingDurationWhenPaused;
         activeTimer.timerEnd = timerData.timerEnd;
         activeTimer.sharedWithString = String.join("#~#", timer.getSharedWith());
+        activeTimer.tagsString = String.join("#~#", timer.getTags());
 
         return activeTimer;
     }

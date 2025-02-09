@@ -13,6 +13,9 @@ public interface TimerDao {
     @Query("SELECT * FROM timer")
     LiveData<List<Timer>> getAll();
 
+    @Query("SELECT * FROM timer WHERE tagsString LIKE :tagsString")
+    LiveData<List<Timer>> getAllWithTag(String tagsString);
+
     @Insert
     void insert(Timer timer);
 

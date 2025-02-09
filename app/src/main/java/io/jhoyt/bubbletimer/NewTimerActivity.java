@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -35,6 +37,20 @@ public class NewTimerActivity extends AppCompatActivity {
             hideKeyboard(view);
         });
 
+        final AutoCompleteTextView tags = findViewById(R.id.editTextTimerTags);
+        tags.setOnFocusChangeListener((view, hasFocus) -> {
+            if (!hasFocus) {
+                hideKeyboard(view);
+            }
+        });
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_dropdown_item_1line, new String[] {
+                        "Hello", "World", "Tags", "Tabs"
+        });
+        tags.setAdapter(adapter);
+
+        // Activity action buttons
+
         final Button create = findViewById(R.id.createButton);
         create.setOnClickListener((view) -> {
             Intent newTimerIntent = new Intent();
@@ -42,6 +58,8 @@ public class NewTimerActivity extends AppCompatActivity {
             if (title != null && duration != null) {
                 newTimerIntent.putExtra("timerTitle", title.getText().toString());
                 newTimerIntent.putExtra("timerDuration", duration.getText().toString());
+                // TODO if we allow multiple tags need to revisit
+                newTimerIntent.putExtra("tagsString", tags.getText().toString());
                 newTimerIntent.putExtra("startTimerNow", false);
 
                 setResult(RESULT_OK, newTimerIntent);
@@ -73,6 +91,8 @@ public class NewTimerActivity extends AppCompatActivity {
             setResult(RESULT_CANCELED, newTimerIntent);
             finish();
         });
+
+        // Big keypad buttons
 
         final ImageButton button1 = findViewById(R.id.imageButton1);
         button1.setOnClickListener((view) -> {

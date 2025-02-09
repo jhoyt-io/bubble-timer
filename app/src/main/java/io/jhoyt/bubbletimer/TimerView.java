@@ -125,6 +125,14 @@ public class TimerView extends View {
         this.timer.shareWith(username);
     }
 
+    public Set<String> getTags() {
+        return this.timer.getTags();
+    }
+
+    public void setTags(Set<String> tags) {
+        this.timer.setTags(tags);
+    }
+
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
         super.onDraw(canvas);

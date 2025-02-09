@@ -303,9 +303,12 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         timerHandler.post(updater);
 
         // Request auth data to initialize websocket
+        // TODO: disabled becuase this was happening too soon before db initialization
+        /*
         Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
         message.putExtra("command", "sendAuthToken");
         LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
+         */
     }
 
     @Override

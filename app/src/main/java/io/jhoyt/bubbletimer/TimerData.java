@@ -5,6 +5,7 @@ import androidx.annotation.NonNull;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Objects;
+import java.util.Set;
 
 public class TimerData {
     public final String id;
@@ -13,14 +14,24 @@ public class TimerData {
     public final Duration totalDuration;
     public final Duration remainingDurationWhenPaused;
     public final LocalDateTime timerEnd;
+    public final Set<String> tags;
 
-    public TimerData(String id, String userId, String name, Duration totalDuration, Duration remainingDurationWhenPaused, LocalDateTime timerEnd) {
+    public TimerData(
+            String id,
+            String userId,
+            String name,
+            Duration totalDuration,
+            Duration remainingDurationWhenPaused,
+            LocalDateTime timerEnd,
+            Set<String> tags
+    ) {
         this.id = id;
         this.userId = userId;
         this.name = name;
         this.totalDuration = totalDuration;
         this.remainingDurationWhenPaused = remainingDurationWhenPaused;
         this.timerEnd = timerEnd;
+        this.tags = tags;
     }
 
     @Override
@@ -43,7 +54,8 @@ public class TimerData {
                 this.name,
                 this.totalDuration,
                 this.remainingDurationWhenPaused,
-                this.timerEnd
+                this.timerEnd,
+                Set.copyOf(this.tags)
         );
     }
 }

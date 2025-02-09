@@ -3,6 +3,7 @@ package io.jhoyt.bubbletimer;
 import android.os.Bundle;
 
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 
 import android.view.LayoutInflater;
@@ -15,6 +16,8 @@ import android.widget.LinearLayout;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import io.jhoyt.bubbletimer.db.TimerViewModel;
 
@@ -25,14 +28,9 @@ import io.jhoyt.bubbletimer.db.TimerViewModel;
  */
 public class TimerListFragment extends Fragment {
 
-    // TODO: Rename parameter arguments, choose names that match
-    // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-    private static final String ARG_PARAM1 = "param1";
-    private static final String ARG_PARAM2 = "param2";
+    private static final String ARG_TAG = "tag";
 
-    // TODO: Rename and change types of parameters
-    private String mParam1;
-    private String mParam2;
+    private String tag;
 
     public TimerListFragment() {
         // Required empty public constructor
@@ -42,16 +40,14 @@ public class TimerListFragment extends Fragment {
      * Use this factory method to create a new instance of
      * this fragment using the provided parameters.
      *
-     * @param param1 Parameter 1.
-     * @param param2 Parameter 2.
+     * @param tag Parameter 1.
      * @return A new instance of fragment TimerListFragment.
      */
     // TODO: Rename and change types and number of parameters
-    public static TimerListFragment newInstance(String param1, String param2) {
+    public static TimerListFragment newInstance(String tag) {
         TimerListFragment fragment = new TimerListFragment();
         Bundle args = new Bundle();
-        args.putString(ARG_PARAM1, param1);
-        args.putString(ARG_PARAM2, param2);
+        args.putString(ARG_TAG, tag);
         fragment.setArguments(args);
         return fragment;
     }
@@ -60,8 +56,7 @@ public class TimerListFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (getArguments() != null) {
-            mParam1 = getArguments().getString(ARG_PARAM1);
-            mParam2 = getArguments().getString(ARG_PARAM2);
+            tag = getArguments().getString(ARG_TAG);
         }
     }
 
@@ -74,7 +69,8 @@ public class TimerListFragment extends Fragment {
         LinearLayout listLayout = view.findViewById(R.id.timerList);
 
         TimerViewModel timerViewModel = new ViewModelProvider(requireActivity()).get(TimerViewModel.class);
-        timerViewModel.getAllTimers().observe(requireActivity(), timers -> {
+
+        Observer<List<io.jhoyt.bubbletimer.db.Timer>> observer = timers -> {
             listLayout.removeAllViews();
 
             timers.sort(new Comparator<io.jhoyt.bubbletimer.db.Timer>() {
@@ -103,13 +99,14 @@ public class TimerListFragment extends Fragment {
                         timer.title,
                         timer.duration,
                         null,
-                        null
+                        null,
+                        Set.of(timer.tagsString.split("#~#"))
                 ), new HashSet<>()));
 
                 ((Button)cardTimer.findViewById(R.id.startButton)).setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        ((MainActivity)getActivity()).startTimer(timer.title, timerView.getRemainingDuration());
+                        ((MainActivity)getActivity()).startTimer(timer.title, timerView.getRemainingDuration(), timerView.getTags());
                     }
                 });
 
@@ -122,7 +119,13 @@ public class TimerListFragment extends Fragment {
 
                 listLayout.addView(cardTimer);
             });
-        });
+        };
+
+        if (tag.equals("ALL")) {
+            timerViewModel.getAllTimers().observe(requireActivity(), observer);
+        } else {
+            timerViewModel.getAllTimersWithTag(tag).observe(requireActivity(), observer);
+        }
 
         return view;
     }

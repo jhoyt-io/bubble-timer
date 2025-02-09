@@ -21,9 +21,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.viewpager2.widget.ViewPager2;
 
 import com.amplifyframework.auth.cognito.AWSCognitoAuthSession;
 import com.amplifyframework.core.Amplify;
+import com.google.android.material.tabs.TabLayout;
+import com.google.android.material.tabs.TabLayoutMediator;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -158,18 +161,28 @@ public class MainActivity extends AppCompatActivity {
         LocalBroadcastManager.getInstance(this)
                 .registerReceiver(broadcastReceiver, new IntentFilter(MainActivity.MESSAGE_RECEIVER_ACTION));
 
+        // Set up pager for tabs
+        ViewPager2 viewPager = findViewById(R.id.timerPager);
+        viewPager.setAdapter(new TimerListCollectionAdapter(this));
+
+        // Set up tabs
+        TabLayout tabLayout = findViewById(R.id.tabLayout);
+        new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> {
+            tab.setText(TimerListCollectionAdapter.tags[position]);
+        }).attach();
+
         // Request auth token on behalf of the service  (TODO: why??)
         Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
         message.putExtra("command", "sendAuthToken");
         LocalBroadcastManager.getInstance(this).sendBroadcast(message);
     }
 
-    public void startTimer(String name, Duration duration) {
+    public void startTimer(String name, Duration duration, Set<String> tags) {
         if (userId == null) {
             Log.i("MainActivity", "userId still null - not starting timer");
         }
 
-        Timer timer = new Timer(userId, name, duration);
+        Timer timer = new Timer(userId, name, duration, tags);
         timer.unpause();
 
         this.activeTimerViewModel.insert(timer);
@@ -213,10 +226,16 @@ public class MainActivity extends AppCompatActivity {
         if (resultCode == RESULT_OK) {
             String title = data.getStringExtra("timerTitle");
             String durationString = data.getStringExtra("timerDuration");
+            String tagsString = data.getStringExtra("tagsString");
             boolean startTimerNow = data.getBooleanExtra("startTimerNow", false);
 
             String[] durationStringSplit = durationString.split(":");
             Duration duration = Duration.ofSeconds(5);
+
+            Set<String> tags = new HashSet<>();
+            if (tagsString != null) {
+                tags = Set.of(tagsString.split("#~#"));
+            }
 
             if (durationStringSplit.length == 1) {
                 int seconds = Integer.valueOf(durationStringSplit[0]);
@@ -224,7 +243,8 @@ public class MainActivity extends AppCompatActivity {
 
                 io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
                         title,
-                        duration
+                        duration,
+                        tagsString
                 );
                 this.timerViewModel.insert(timer);
             }
@@ -237,7 +257,8 @@ public class MainActivity extends AppCompatActivity {
 
                 io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
                         title,
-                        duration
+                        duration,
+                        tagsString
                 );
                 this.timerViewModel.insert(timer);
             }
@@ -252,13 +273,14 @@ public class MainActivity extends AppCompatActivity {
 
                 io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
                         title,
-                        duration
+                        duration,
+                        tagsString
                 );
                 this.timerViewModel.insert(timer);
             }
 
             if (startTimerNow) {
-                startTimer(title, duration);
+                startTimer(title, duration, tags);
             }
         }
     }
