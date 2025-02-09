@@ -1,7 +1,6 @@
 package io.jhoyt.bubbletimer.db;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
@@ -32,4 +31,7 @@ public class ActiveTimer {
 
     @ColumnInfo(name = "sharedWithString", defaultValue = "")
     public String sharedWithString;
+
+    @ColumnInfo(name = "tagsString", defaultValue = "")
+    public String tagsString;
 }

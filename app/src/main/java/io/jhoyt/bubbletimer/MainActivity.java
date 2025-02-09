@@ -158,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
         LocalBroadcastManager.getInstance(this)
                 .registerReceiver(broadcastReceiver, new IntentFilter(MainActivity.MESSAGE_RECEIVER_ACTION));
 
-        // Request active timers from the service, if there are any
+        // Request auth token on behalf of the service  (TODO: why??)
         Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
         message.putExtra("command", "sendAuthToken");
         LocalBroadcastManager.getInstance(this).sendBroadcast(message);

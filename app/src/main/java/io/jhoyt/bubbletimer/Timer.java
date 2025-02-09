@@ -120,7 +120,10 @@ public class Timer {
     }
 
     public void shareWith(String userName) {
-        this.sharedWith.add(userName);
+        Set<String> set = new HashSet<>(this.sharedWith);
+        set.add(userName);
+
+        this.sharedWith = Set.copyOf(set);
     }
 
     public TimerData getTimerData() {

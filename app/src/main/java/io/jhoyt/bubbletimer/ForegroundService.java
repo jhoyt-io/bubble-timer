@@ -93,7 +93,10 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                         }
                     });
                 }
-                ForegroundService.this.expandedWindow.close();
+
+                if (ForegroundService.this.expandedWindow != null) {
+                    ForegroundService.this.expandedWindow.close();
+                }
             } else if (command.equals("receiveAuthToken")) {
                 Log.i("ForegroundService", "Auth token received");
 
@@ -298,6 +301,11 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
             timerHandler.postDelayed(updater, 1000);
         };
         timerHandler.post(updater);
+
+        // Request auth data to initialize websocket
+        Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
+        message.putExtra("command", "sendAuthToken");
+        LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
     }
 
     @Override

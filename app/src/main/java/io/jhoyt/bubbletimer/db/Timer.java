@@ -5,6 +5,7 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 import java.time.Duration;
+import java.util.Set;
 
 @Entity
 public class Timer {
@@ -17,12 +18,20 @@ public class Timer {
     @ColumnInfo(name = "duration")
     public Duration duration;
 
+    @ColumnInfo(name = "tagsString", defaultValue = "")
+    public String tagsString;
+
     public Timer() {
     }
 
     public Timer(String title, Duration duration) {
+        this(title, duration, "");
+    }
+
+    public Timer(String title, Duration duration, String tagsString) {
         this.title = title;
         this.duration = duration;
+        this.tagsString = tagsString;
     }
 
 }
