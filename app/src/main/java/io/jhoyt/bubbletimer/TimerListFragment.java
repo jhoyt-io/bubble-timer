@@ -100,7 +100,9 @@ public class TimerListFragment extends Fragment {
                         timer.duration,
                         null,
                         null,
-                        Set.of(timer.tagsString.split("#~#"))
+                        (timer.tagsString == null) ?
+                                Set.of()
+                                : Set.of(timer.tagsString.split("#~#"))
                 ), new HashSet<>()));
 
                 ((Button)cardTimer.findViewById(R.id.startButton)).setOnClickListener(new View.OnClickListener() {

@@ -5,7 +5,6 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 import java.time.Duration;
-import java.util.Set;
 
 @Entity
 public class Timer {

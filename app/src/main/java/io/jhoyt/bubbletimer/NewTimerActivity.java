@@ -5,14 +5,22 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.Spinner;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.lifecycle.ViewModelProvider;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import io.jhoyt.bubbletimer.db.TagViewModel;
 
 public class NewTimerActivity extends AppCompatActivity {
     private String durationString = "";
@@ -37,35 +45,42 @@ public class NewTimerActivity extends AppCompatActivity {
             hideKeyboard(view);
         });
 
-        final AutoCompleteTextView tags = findViewById(R.id.editTextTimerTags);
-        tags.setOnFocusChangeListener((view, hasFocus) -> {
+        final AutoCompleteTextView tagsView = findViewById(R.id.editTextTimerTags);
+        tagsView.setOnFocusChangeListener((view, hasFocus) -> {
             if (!hasFocus) {
                 hideKeyboard(view);
+            } else {
+                tagsView.showDropDown();
             }
         });
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_dropdown_item_1line, new String[] {
-                        "Hello", "World", "Tags", "Tabs"
+
+        TagViewModel tagViewModel = new ViewModelProvider(this).get(TagViewModel.class);
+        tagViewModel.getAllTags().observe(this, tags -> {
+            List<String> tagList = tags.stream().map(tag -> tag.name).collect(Collectors.toList());
+            ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
+                    android.R.layout.simple_dropdown_item_1line,
+                    tagList);
+            tagsView.setAdapter(adapter);
         });
-        tags.setAdapter(adapter);
 
         // Activity action buttons
-
         final Button create = findViewById(R.id.createButton);
         create.setOnClickListener((view) -> {
             Intent newTimerIntent = new Intent();
 
-            if (title != null && duration != null) {
-                newTimerIntent.putExtra("timerTitle", title.getText().toString());
-                newTimerIntent.putExtra("timerDuration", duration.getText().toString());
-                // TODO if we allow multiple tags need to revisit
-                newTimerIntent.putExtra("tagsString", tags.getText().toString());
-                newTimerIntent.putExtra("startTimerNow", false);
+            newTimerIntent.putExtra("startTimerNow", false);
 
-                setResult(RESULT_OK, newTimerIntent);
-            } else {
-                setResult(RESULT_CANCELED, newTimerIntent);
+            newTimerIntent.putExtra("timerTitle", title.getText().toString());
+            newTimerIntent.putExtra("timerDuration", duration.getText().toString());
+
+            // TODO if we allow multiple tags need to revisit
+            String tags = tagsView.getText().toString();
+            if (!tags.isEmpty()) {
+                newTimerIntent.putExtra("tagsString", tags);
             }
+
+            setResult(RESULT_OK, newTimerIntent);
+
             finish();
         });
 
@@ -73,15 +88,19 @@ public class NewTimerActivity extends AppCompatActivity {
         createAndStart.setOnClickListener((view) -> {
             Intent newTimerIntent = new Intent();
 
-            if (title != null && duration != null) {
-                newTimerIntent.putExtra("timerTitle", title.getText().toString());
-                newTimerIntent.putExtra("timerDuration", duration.getText().toString());
-                newTimerIntent.putExtra("startTimerNow", true);
+            newTimerIntent.putExtra("startTimerNow", true);
 
-                setResult(RESULT_OK, newTimerIntent);
-            } else {
-                setResult(RESULT_CANCELED, newTimerIntent);
+            newTimerIntent.putExtra("timerTitle", title.getText().toString());
+            newTimerIntent.putExtra("timerDuration", duration.getText().toString());
+
+            // TODO if we allow multiple tags need to revisit
+            String tags = tagsView.getText().toString();
+            if (!tags.isEmpty()) {
+                newTimerIntent.putExtra("tagsString", tags);
             }
+
+            setResult(RESULT_OK, newTimerIntent);
+
             finish();
         });
 

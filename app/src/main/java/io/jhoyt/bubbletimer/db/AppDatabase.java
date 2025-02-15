@@ -15,18 +15,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Database(
-    version = 4,
-    entities = {Timer.class, ActiveTimer.class},
+    version = 5,
+    entities = {Timer.class, ActiveTimer.class, Tag.class},
     autoMigrations = {
         @AutoMigration(from = 1, to = 2),
         @AutoMigration(from = 2, to = 3),
         @AutoMigration(from = 3, to = 4),
+        @AutoMigration(from = 4, to = 5),
     }
 )
 @TypeConverters({Converters.class})
 public abstract class AppDatabase extends RoomDatabase {
     public abstract TimerDao timerDao();
     public abstract ActiveTimerDao activeTimerDao();
+    public abstract TagDao tagDao();
 
     private static volatile AppDatabase INSTANCE;
     private static final int NUMBER_OF_THREADS = 4;
@@ -66,6 +68,11 @@ public abstract class AppDatabase extends RoomDatabase {
                 timer2.title = "World!!";
                 timer2.duration = Duration.ofMinutes(9);
                 dao.insert(timer2);
+
+                TagDao tagDao = INSTANCE.tagDao();
+                tagDao.insert(new Tag("Hello"));
+                tagDao.insert(new Tag("World"));
+                tagDao.insert(new Tag("Tabs"));
             });
         }
     };

@@ -30,11 +30,15 @@ import com.google.android.material.tabs.TabLayoutMediator;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import io.jhoyt.bubbletimer.db.ActiveTimerViewModel;
+import io.jhoyt.bubbletimer.db.Tag;
+import io.jhoyt.bubbletimer.db.TagViewModel;
 import io.jhoyt.bubbletimer.db.TimerViewModel;
 
 public class MainActivity extends AppCompatActivity {
@@ -48,6 +52,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ActiveTimerViewModel activeTimerViewModel;
     private TimerViewModel timerViewModel;
+    private TagViewModel tagViewModel;
     
     private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -161,15 +166,23 @@ public class MainActivity extends AppCompatActivity {
         LocalBroadcastManager.getInstance(this)
                 .registerReceiver(broadcastReceiver, new IntentFilter(MainActivity.MESSAGE_RECEIVER_ACTION));
 
-        // Set up pager for tabs
-        ViewPager2 viewPager = findViewById(R.id.timerPager);
-        viewPager.setAdapter(new TimerListCollectionAdapter(this));
-
         // Set up tabs
-        TabLayout tabLayout = findViewById(R.id.tabLayout);
-        new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> {
-            tab.setText(TimerListCollectionAdapter.tags[position]);
-        }).attach();
+        this.tagViewModel = new ViewModelProvider(this).get(TagViewModel.class);
+        this.tagViewModel.getAllTags().observe(this, tags -> {
+            List<String> tabs = new ArrayList<>(tags.size()+1);
+            tabs.add("ALL");
+            tags.forEach(tag -> tabs.add(tag.name));
+
+            // Set up pager for tabs
+            ViewPager2 viewPager = findViewById(R.id.timerPager);
+            viewPager.setAdapter(new TimerListCollectionAdapter(this, tabs));
+
+            // Tab layout
+            TabLayout tabLayout = findViewById(R.id.tabLayout);
+            new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> {
+                tab.setText(tabs.get(position));
+            }).attach();
+        });
 
         // Request auth token on behalf of the service  (TODO: why??)
         Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
@@ -236,6 +249,15 @@ public class MainActivity extends AppCompatActivity {
             if (tagsString != null) {
                 tags = Set.of(tagsString.split("#~#"));
             }
+
+            List<String> allTags = this.tagViewModel.getAllTags().getValue().stream()
+                    .map(tag -> tag.name)
+                    .collect(Collectors.toList());
+            tags.forEach(tag -> {
+                if (!tag.trim().isEmpty() && !allTags.contains(tag) ) {
+                    this.tagViewModel.insert(new Tag(tag));
+                }
+            });
 
             if (durationStringSplit.length == 1) {
                 int seconds = Integer.valueOf(durationStringSplit[0]);
