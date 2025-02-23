@@ -106,16 +106,15 @@
         android:id="@+id/editTextTimerTags"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:completionThreshold="0"
         android:ems="10"
+        android:hint="Tab"
         android:inputType="textCapWords"
         android:textAlignment="center"
-        android:completionThreshold="0"
-        android:hint="Tab"
-        app:layout_constraintBottom_toTopOf="@+id/createButton"
+        app:layout_constraintBottom_toTopOf="@+id/editTextTimerDuration"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/imageButton0" />
+        app:layout_constraintTop_toBottomOf="@+id/editTextTimerName" />
 
     <EditText
         android:id="@+id/editTextTimerDuration"
@@ -131,7 +130,7 @@
         android:textColor="#000000"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editTextTimerName" />
+        app:layout_constraintTop_toBottomOf="@+id/editTextTimerTags" />
 
     <Button
         android:id="@+id/createButton"

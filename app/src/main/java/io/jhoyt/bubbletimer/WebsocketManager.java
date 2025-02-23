@@ -86,7 +86,7 @@ public class WebsocketManager {
                 .stream()
                 .map(Timer::copy)
                 .collect(Collectors.toList());
-        this.activeTimersLiveData.postValue(timers);
+        this.activeTimersLiveData.setValue(timers);
     }
 
     private void removeTimerFromLocalTimerList(String timerId) {
@@ -104,7 +104,7 @@ public class WebsocketManager {
                 .stream()
                 .map(Timer::copy)
                 .collect(Collectors.toList());
-        this.activeTimersLiveData.postValue(timers);
+        this.activeTimersLiveData.setValue(timers);
     }
 
     public void initialize(String authToken, String deviceId) {

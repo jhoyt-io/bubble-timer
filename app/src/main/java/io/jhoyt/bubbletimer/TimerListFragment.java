@@ -12,13 +12,15 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
-import java.time.Duration;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import io.jhoyt.bubbletimer.db.Tag;
+import io.jhoyt.bubbletimer.db.TagViewModel;
 import io.jhoyt.bubbletimer.db.TimerViewModel;
 
 /**
@@ -63,12 +65,39 @@ public class TimerListFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
+        final TimerViewModel timerViewModel = new ViewModelProvider(requireActivity()).get(TimerViewModel.class);
+        final TagViewModel tagViewModel = new ViewModelProvider(requireActivity()).get(TagViewModel.class);
+
+        final boolean isAllTab = tag.equals("ALL");
+
         // Inflate the layout for this fragment
-        View view = inflater.inflate(R.layout.fragment_timer_list, container, false);
+        final View view = inflater.inflate(R.layout.fragment_timer_list, container, false);
 
-        LinearLayout listLayout = view.findViewById(R.id.timerList);
+        final LinearLayout scrollFragmentContainer = view.findViewById(R.id.scrollFragmentContainer);
 
-        TimerViewModel timerViewModel = new ViewModelProvider(requireActivity()).get(TimerViewModel.class);
+        // Configure tab button
+        final TextView configureTab = view.findViewById(R.id.configureTab);
+        if (isAllTab) {
+            scrollFragmentContainer.removeViewAt(0);
+        } else {
+            configureTab.setOnClickListener(textView -> {
+                // Configure tab view isn't expanded
+                if (scrollFragmentContainer.getChildCount() == 2 && !tag.equals("ALL")) {
+                    final View configureTabView = inflater.inflate(R.layout.configure_tab, container, false);
+                    scrollFragmentContainer.addView(configureTabView, 1);
+
+                    final Button deleteButton = configureTabView.findViewById(R.id.deleteButton);
+                    deleteButton.setOnClickListener(buttonView -> {
+                        tagViewModel.delete(new Tag(tag));
+                    });
+                } else if (scrollFragmentContainer.getChildCount() == 3) { // Configure tab view is expanded
+                    scrollFragmentContainer.removeViewAt(1);
+                }
+            });
+        }
+
+        // List of timers
+        final LinearLayout listLayout = view.findViewById(R.id.timerList);
 
         Observer<List<io.jhoyt.bubbletimer.db.Timer>> observer = timers -> {
             listLayout.removeAllViews();
