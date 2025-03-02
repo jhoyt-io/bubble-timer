@@ -28,8 +28,16 @@ public class TimerViewModel extends AndroidViewModel {
         return timerRepository.getAllTimersWithTag(tag);
     }
 
+    public LiveData<Timer> getById(int id) {
+        return timerRepository.getById(id);
+    }
+
     public void insert(Timer timer) {
         timerRepository.insert(timer);
+    }
+
+    public void update(Timer timer) {
+        timerRepository.update(timer);
     }
 
     public void deleteById(int timerId) {

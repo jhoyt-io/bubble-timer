@@ -10,17 +10,28 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="190dp">
 
         <Button
             android:id="@+id/startButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
+            android:gravity="center_horizontal|center_vertical"
             android:text="Start"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/editButton"
             app:layout_constraintStart_toEndOf="@+id/timer"
             app:layout_constraintTop_toTopOf="parent" />
+
+        <Button
+            android:id="@+id/editButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="Edit"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/timer"
+            app:layout_constraintTop_toBottomOf="@id/startButton" />
 
         <io.jhoyt.bubbletimer.TimerView
             android:id="@+id/timer"

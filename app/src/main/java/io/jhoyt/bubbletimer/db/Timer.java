@@ -23,6 +23,11 @@ public class Timer {
     public Timer() {
     }
 
+    public Timer(int id, String title, Duration duration, String tagsString) {
+        this(title, duration, tagsString);
+        this.id = id;
+    }
+
     public Timer(String title, Duration duration) {
         this(title, duration, "");
     }

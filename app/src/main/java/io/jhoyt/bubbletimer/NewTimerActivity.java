@@ -5,13 +5,11 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.Spinner;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -84,7 +82,7 @@ public class NewTimerActivity extends AppCompatActivity {
             finish();
         });
 
-        final Button createAndStart = findViewById(R.id.createAndStartButton);
+        final Button createAndStart = findViewById(R.id.saveButton);
         createAndStart.setOnClickListener((view) -> {
             Intent newTimerIntent = new Intent();
 

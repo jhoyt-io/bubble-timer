@@ -25,9 +25,19 @@ public class TimerRepository {
         return this.timerDao.getAllWithTag(tag);
     }
 
+    public LiveData<Timer> getById(int id) {
+        return this.timerDao.getById(id);
+    }
+
     public void insert(Timer timer) {
         AppDatabase.databaseWriteExecutor.execute(() -> {
             timerDao.insert(timer);
+        });
+    }
+
+    public void update(Timer timer) {
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            timerDao.update(timer);
         });
     }
 

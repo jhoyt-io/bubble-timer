@@ -32,6 +32,11 @@
             android:exported="false"
             android:label="NewTimerActivity"
             android:theme="@style/Theme.BubbleTimer" />
+        <activity
+            android:name=".EditTimerActivity"
+            android:exported="false"
+            android:label="EditTimerActivity"
+            android:theme="@style/Theme.BubbleTimer" />
 
         <service
             android:name=".ForegroundService"

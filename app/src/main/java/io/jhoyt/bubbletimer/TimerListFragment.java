@@ -1,5 +1,6 @@
 package io.jhoyt.bubbletimer;
 
+import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.fragment.app.Fragment;
@@ -138,6 +139,15 @@ public class TimerListFragment extends Fragment {
                     @Override
                     public void onClick(View v) {
                         ((MainActivity)getActivity()).startTimer(timer.title, timerView.getRemainingDuration(), timerView.getTags());
+                    }
+                });
+
+                cardTimer.findViewById(R.id.editButton).setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        Intent intent = new Intent(getContext(), EditTimerActivity.class);
+                        intent.putExtra("timerId", timer.id);
+                        getActivity().startActivityForResult(intent, MainActivity.EDIT_TIMER_REQUEST);
                     }
                 });
 

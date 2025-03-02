@@ -43,6 +43,8 @@ import io.jhoyt.bubbletimer.db.TimerViewModel;
 
 public class MainActivity extends AppCompatActivity {
     public static String MESSAGE_RECEIVER_ACTION = "main-activity-message-receiver";
+    public static int NEW_TIMER_REQUEST = 0;
+    public static int EDIT_TIMER_REQUEST = 1;
 
     private Handler timerHandler;
     private Runnable updater;
@@ -130,17 +132,8 @@ public class MainActivity extends AppCompatActivity {
         timerHandler.post(updater);
 
         this.findViewById(R.id.button).setOnClickListener(v -> {
-            // TODO: create new timer dialog
-
-            // easy debug:
-            // this.startService(69);
-
             Intent intent = new Intent(MainActivity.this, NewTimerActivity.class);
             startActivityForResult(intent, 0);
-
-            //Amplify.Auth.signOut(onComplete -> {
-
-            //});
         });
 
         this.findViewById(R.id.loginButton).setOnClickListener(v -> {
@@ -236,75 +229,78 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (resultCode == RESULT_OK) {
-            String title = data.getStringExtra("timerTitle");
-            String durationString = data.getStringExtra("timerDuration");
-            String tagsString = data.getStringExtra("tagsString");
-            boolean startTimerNow = data.getBooleanExtra("startTimerNow", false);
+        if (requestCode == NEW_TIMER_REQUEST || requestCode == EDIT_TIMER_REQUEST) {
+            if (resultCode == RESULT_OK) {
+                String title = data.getStringExtra("timerTitle");
+                String durationString = data.getStringExtra("timerDuration");
+                String tagsString = data.getStringExtra("tagsString");
 
-            String[] durationStringSplit = durationString.split(":");
-            Duration duration = Duration.ofSeconds(5);
+                String[] durationStringSplit = durationString.split(":");
+                Duration duration = Duration.ofSeconds(5);
 
-            Set<String> tags = new HashSet<>();
-            if (tagsString != null) {
-                tags = Set.of(tagsString.split("#~#"));
-            }
-
-            List<String> allTags = this.tagViewModel.getAllTags().getValue().stream()
-                    .map(tag -> tag.name)
-                    .collect(Collectors.toList());
-            tags.forEach(tag -> {
-                if (!tag.trim().isEmpty() && !allTags.contains(tag) ) {
-                    this.tagViewModel.insert(new Tag(tag));
+                Set<String> tags = new HashSet<>();
+                if (tagsString != null) {
+                    tags = Set.of(tagsString.split("#~#"));
                 }
-            });
 
-            if (durationStringSplit.length == 1) {
-                int seconds = Integer.valueOf(durationStringSplit[0]);
-                duration = Duration.ofSeconds(seconds);
+                List<String> allTags = this.tagViewModel.getAllTags().getValue().stream()
+                        .map(tag -> tag.name)
+                        .collect(Collectors.toList());
+                tags.forEach(tag -> {
+                    if (!tag.trim().isEmpty() && !allTags.contains(tag) ) {
+                        this.tagViewModel.insert(new Tag(tag));
+                    }
+                });
 
-                io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
-                        title,
-                        duration,
-                        tagsString
-                );
-                this.timerViewModel.insert(timer);
-            }
+                if (durationStringSplit.length == 1) {
+                    int seconds = Integer.valueOf(durationStringSplit[0]);
+                    duration = Duration.ofSeconds(seconds);
+                }
 
-            if (durationStringSplit.length == 2) {
-                int minutes = Integer.valueOf(durationStringSplit[0]);
-                int seconds = Integer.valueOf(durationStringSplit[1]);
-                duration = Duration.ofMinutes(minutes);
-                duration = duration.plus(Duration.ofSeconds(seconds));
+                if (durationStringSplit.length == 2) {
+                    int minutes = Integer.valueOf(durationStringSplit[0]);
+                    int seconds = Integer.valueOf(durationStringSplit[1]);
+                    duration = Duration.ofMinutes(minutes);
+                    duration = duration.plus(Duration.ofSeconds(seconds));
+                }
 
-                io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
-                        title,
-                        duration,
-                        tagsString
-                );
-                this.timerViewModel.insert(timer);
-            }
+                if (durationStringSplit.length == 3) {
+                    int hours   = Integer.valueOf(durationStringSplit[0]);
+                    int minutes = Integer.valueOf(durationStringSplit[1]);
+                    int seconds = Integer.valueOf(durationStringSplit[2]);
+                    duration = Duration.ofHours(hours);
+                    duration = duration.plus(Duration.ofMinutes(minutes));
+                    duration = duration.plus(Duration.ofSeconds(seconds));
+                }
 
-            if (durationStringSplit.length == 3) {
-                int hours   = Integer.valueOf(durationStringSplit[0]);
-                int minutes = Integer.valueOf(durationStringSplit[1]);
-                int seconds = Integer.valueOf(durationStringSplit[2]);
-                duration = Duration.ofHours(hours);
-                duration = duration.plus(Duration.ofMinutes(minutes));
-                duration = duration.plus(Duration.ofSeconds(seconds));
+                if (requestCode == NEW_TIMER_REQUEST) {
+                    io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
+                            title,
+                            duration,
+                            tagsString
+                    );
+                    this.timerViewModel.insert(timer);
 
-                io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
-                        title,
-                        duration,
-                        tagsString
-                );
-                this.timerViewModel.insert(timer);
-            }
+                    boolean startTimerNow = data.getBooleanExtra("startTimerNow", false);
+                    if (startTimerNow) {
+                        startTimer(title, duration, tags);
+                    }
+                } else if (requestCode == EDIT_TIMER_REQUEST) {
+                    int timerId = data.getIntExtra("timerId", -1);
 
-            if (startTimerNow) {
-                startTimer(title, duration, tags);
+                    if (timerId > -1) {
+                        io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
+                                timerId,
+                                title,
+                                duration,
+                                tagsString
+                        );
+                        this.timerViewModel.update(timer);
+                    }
+                }
             }
         }
+
     }
 
     @Override
