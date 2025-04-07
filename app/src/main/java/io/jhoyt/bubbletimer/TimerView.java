@@ -139,7 +139,7 @@ public class TimerView extends View {
 
         Duration remaining = this.timer.getRemainingDuration();
         long remainingSeconds = remaining.getSeconds() + (remaining.getNano() > 0 ? 1 : 0);
-        String text = DurationUtil.getFormattedDuration(remaining);
+        String durationText = DurationUtil.getFormattedDuration(remaining);
 
         float paintCircleRadius = 0.0f;
         float paintArcWidth = 0.0f;
@@ -158,7 +158,7 @@ public class TimerView extends View {
             arcOval.right = centerX + paintCircleRadius - paintArcWidth;
             arcOval.bottom = centerY + paintCircleRadius - paintArcWidth;
             arcPaint.setStrokeWidth(paintArcWidth);
-            textPaint.setTextSize(textHeight);
+            textPaint.setTextSize(textHeight - (durationText.length() / 6 * 20.f));
             redTextPaint.setTextSize(textHeight);
         } else {
             // LARGE
@@ -179,7 +179,7 @@ public class TimerView extends View {
             arcOval.right = centerX + paintCircleRadius - paintArcWidth;
             arcOval.bottom = centerY + paintCircleRadius - paintArcWidth;
             arcPaint.setStrokeWidth(paintArcWidth);
-            textPaint.setTextSize(textHeight);
+            textPaint.setTextSize(textHeight - (durationText.length() / 7 * 20.0f));
             redTextPaint.setTextSize(textHeight);
         }
 
@@ -196,16 +196,17 @@ public class TimerView extends View {
         );
 
         if (remainingSeconds > 0) {
-            canvas.drawText(text, centerX, centerY + (textHeight / 4.0f), this.textPaint);
+            canvas.drawText(durationText, centerX, centerY + (textHeight / 4.0f), this.textPaint);
         } else {
             if (remaining.getNano() > 500000000) {
-                canvas.drawText(text, centerX, centerY + (textHeight / 4.0f), this.redTextPaint);
+                canvas.drawText(durationText, centerX, centerY + (textHeight / 4.0f), this.redTextPaint);
             }
         }
 
         if (!isSmallMode) {
-            this.textPaint.setTextSize(textHeight / 2.0f);
-            canvas.drawText(this.timer.getName(), centerX, centerY - (circleRadius / 2.5f), this.textPaint);
+            String name = this.timer.getName();
+            this.textPaint.setTextSize(textHeight / 2.0f - Math.min(30.0f, Math.max(0, (name.length() - 10)) * 3.0f));
+            canvas.drawText(name, centerX, centerY - (circleRadius / 2.5f), this.textPaint);
             this.textPaint.setTextSize(textHeight);
 
             // right
