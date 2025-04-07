@@ -17,6 +17,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.ViewModelProvider;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import io.jhoyt.bubbletimer.db.TagViewModel;
@@ -73,9 +74,25 @@ public class EditTimerActivity extends AppCompatActivity {
             timerLiveData.observe(this, timer -> {
                 title.setText(timer.title);
 
-                this.durationString = "" + timer.duration.toHours()
-                        + timer.duration.toMinutes() % 60
-                        + timer.duration.toSeconds() % 60;
+                if (timer.duration.toHours() > 0) {
+                    this.durationString =
+                            String.format(Locale.US, "%d%02d%02d",
+                                    timer.duration.toHours(),
+                                    timer.duration.toMinutesPart(),
+                                    timer.duration.toSecondsPart());
+                } else if (timer.duration.toMinutesPart() > 0) {
+                    this.durationString =
+                            String.format(Locale.US, "%d%02d",
+                                    timer.duration.toMinutesPart(),
+                                    timer.duration.toSecondsPart());
+                } else if (timer.duration.toSecondsPart() > 0) {
+                    this.durationString =
+                            String.format(Locale.US, "%d",
+                                    timer.duration.toSecondsPart());
+                } else {
+                    this.durationString = "";
+                }
+
                 duration.setText(getDisplayDuration());
 
                 tagsView.setText(timer.tagsString);
@@ -198,6 +215,7 @@ public class EditTimerActivity extends AppCompatActivity {
         if (result.isEmpty()) {
             return null;
         }
+
 
         String hours = "0";
         String minutes = "00";
