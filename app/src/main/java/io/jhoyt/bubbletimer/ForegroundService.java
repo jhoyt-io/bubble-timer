@@ -115,14 +115,11 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         }
     };
 
-
-
     public ForegroundService() {
         Log.i("ForegroundService", "Constructing");
         this.timerHandler = new Handler();
         this.expandedWindow = null;
         this.vibrator = null;
-
     }
 
     @Override
@@ -144,6 +141,33 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                         Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
                         message.putExtra("command", "sendAuthToken");
                         LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
+                    }
+
+                    @Override
+                    public void onConnectionStateChanged(WebsocketManager.ConnectionState newState) {
+                        Log.i("ForegroundService", "Websocket state changed to: " + newState);
+                        
+                        // Update notification based on connection state
+                        String statusText;
+                        switch (newState) {
+                            case CONNECTED:
+                                statusText = "Connected";
+                                break;
+                            case CONNECTING:
+                                statusText = "Connecting...";
+                                break;
+                            case RECONNECTING:
+                                statusText = "Reconnecting...";
+                                break;
+                            case DISCONNECTED:
+                                statusText = "Disconnected";
+                                break;
+                            default:
+                                statusText = "Unknown state";
+                        }
+                        
+                        notificationBuilder.setContentText(statusText);
+                        notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
                     }
                 },
                 activeTimerRepository
@@ -305,12 +329,9 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         timerHandler.post(updater);
 
         // Request auth data to initialize websocket
-        // TODO: disabled becuase this was happening too soon before db initialization
-        /*
         Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
         message.putExtra("command", "sendAuthToken");
         LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
-         */
     }
 
     @Override

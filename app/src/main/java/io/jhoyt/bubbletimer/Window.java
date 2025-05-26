@@ -270,7 +270,7 @@ public class Window {
                         }
 
                         if (buttonPressed == 4) {
-                            timer.shareWith("ouchthathoyt");
+                            timer.shareWith("jhoyt");
                             timer.shareWith("tester");
                             bubbleEventListener.onTimerUpdated(timer.getTimer());
                             return true;

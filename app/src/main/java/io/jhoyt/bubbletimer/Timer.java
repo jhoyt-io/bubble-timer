@@ -148,6 +148,10 @@ public class Timer {
         return this.sharedWith;
     }
 
+    public void setSharedWith(Set<String> sharedWith) {
+        this.sharedWith = sharedWith;
+    }
+
     public void shareWith(String userName) {
         Set<String> shareWith = new HashSet<>();
         shareWith.addAll(this.sharedWith);

@@ -20,10 +20,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import io.jhoyt.bubbletimer.db.Tag;
 import io.jhoyt.bubbletimer.db.TagViewModel;
 import io.jhoyt.bubbletimer.db.TimerViewModel;
+import io.jhoyt.bubbletimer.db.Timer;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -37,6 +39,7 @@ public class TimerListFragment extends Fragment {
 
     private String userId;
     private String tag;
+    private final ConcurrentHashMap<Integer, View> timerViews = new ConcurrentHashMap<>();
 
     public TimerListFragment() {
         // Required empty public constructor
@@ -105,12 +108,13 @@ public class TimerListFragment extends Fragment {
         // List of timers
         final LinearLayout listLayout = view.findViewById(R.id.timerList);
 
-        Observer<List<io.jhoyt.bubbletimer.db.Timer>> observer = timers -> {
+        Observer<List<Timer>> observer = timers -> {
             listLayout.removeAllViews();
+            timerViews.clear();
 
-            timers.sort(new Comparator<io.jhoyt.bubbletimer.db.Timer>() {
+            timers.sort(new Comparator<Timer>() {
                 @Override
-                public int compare(io.jhoyt.bubbletimer.db.Timer o1, io.jhoyt.bubbletimer.db.Timer o2) {
+                public int compare(Timer o1, Timer o2) {
                     if (o1.duration.getSeconds() < o2.duration.getSeconds()) {
                         return -1;
                     }
@@ -125,10 +129,10 @@ public class TimerListFragment extends Fragment {
 
             timers.forEach(timer -> {
                 View cardTimer = inflater.inflate(R.layout.card_timer, listLayout, false);
+                timerViews.put(timer.id, cardTimer);
 
                 TimerView timerView = cardTimer.findViewById(R.id.timer);
-                // TODO: this seems to be the wrong use of these types
-                timerView.setTimer(new Timer(new TimerData(
+                timerView.setTimer(new io.jhoyt.bubbletimer.Timer(new TimerData(
                         String.valueOf(timer.id),
                         userId,
                         timer.title,
@@ -159,6 +163,14 @@ public class TimerListFragment extends Fragment {
                 ((ImageButton)cardTimer.findViewById(R.id.delete)).setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
+                        // Show loading state
+                        int index = listLayout.indexOfChild(cardTimer);
+                        View loadingView = inflater.inflate(R.layout.loading_timer, listLayout, false);
+                        listLayout.removeViewAt(index);
+                        listLayout.addView(loadingView, index);
+                        timerViews.put(timer.id, loadingView);
+                        
+                        // Delete timer
                         ((MainActivity)getActivity()).deleteTimer(timer.id);
                     }
                 });

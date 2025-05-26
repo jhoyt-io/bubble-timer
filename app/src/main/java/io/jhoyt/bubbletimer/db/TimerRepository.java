@@ -7,12 +7,14 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 public class TimerRepository {
     private TimerDao timerDao;
     private LiveData<List<Timer>> allTimers;
     private final ConcurrentHashMap<Integer, Timer> timerCache = new ConcurrentHashMap<>();
     private final MutableLiveData<List<Timer>> cachedTimers = new MutableLiveData<>();
+    private final ConcurrentHashMap<String, MutableLiveData<List<Timer>>> tagCaches = new ConcurrentHashMap<>();
     private final AtomicBoolean isUpdating = new AtomicBoolean(false);
 
     TimerRepository(Application application) {
@@ -27,7 +29,7 @@ public class TimerRepository {
                 for (Timer timer : timers) {
                     timerCache.put(timer.id, timer);
                 }
-                cachedTimers.postValue(timers);
+                updateCachedTimers();
             }
         });
     }
@@ -37,7 +39,18 @@ public class TimerRepository {
     }
 
     public LiveData<List<Timer>> getAllTimersWithTag(String tagsString) {
-        return this.timerDao.getAllWithTag(tagsString);
+        return tagCaches.computeIfAbsent(tagsString, tag -> {
+            MutableLiveData<List<Timer>> liveData = new MutableLiveData<>();
+            updateTaggedTimers(tag, liveData);
+            return liveData;
+        });
+    }
+
+    private void updateTaggedTimers(String tag, MutableLiveData<List<Timer>> liveData) {
+        List<Timer> filteredTimers = timerCache.values().stream()
+            .filter(timer -> timer.tagsString != null && timer.tagsString.contains(tag))
+            .collect(Collectors.toList());
+        liveData.postValue(filteredTimers);
     }
 
     public LiveData<Timer> getById(int id) {
@@ -96,9 +109,11 @@ public class TimerRepository {
     private void updateCachedTimers() {
         isUpdating.set(true);
         try {
-            // Create a new ArrayList instead of using List.copyOf()
             List<Timer> timers = new ArrayList<>(timerCache.values());
             cachedTimers.postValue(timers);
+            
+            // Update all tag caches
+            tagCaches.forEach((tag, liveData) -> updateTaggedTimers(tag, liveData));
         } finally {
             isUpdating.set(false);
         }
