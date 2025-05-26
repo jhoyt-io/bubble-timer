@@ -5,18 +5,13 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LifecycleOwner;
-import androidx.lifecycle.MutableLiveData;
-import androidx.recyclerview.widget.DiffUtil;
-import androidx.recyclerview.widget.ListUpdateCallback;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import io.jhoyt.bubbletimer.db.ActiveTimerRepository;
 import okhttp3.OkHttpClient;
@@ -41,20 +36,13 @@ public class WebsocketManager {
     private WebSocket webSocket;
 
     private ActiveTimerRepository activeTimerRepository;
-    private LifecycleOwner observerOwner;
-    private List<Timer> repositoryActiveTimers;
-
-    private MutableLiveData<List<Timer>> activeTimersLiveData;
-    private List<Timer> websocketActiveTimers;
-
     public interface WebsocketMessageListener {
         void onFailure(String reason);
     }
 
     public WebsocketManager(
             WebsocketMessageListener messageListener,
-            ActiveTimerRepository activeTimerRepository,
-            LifecycleOwner observerOwner
+            ActiveTimerRepository activeTimerRepository
     ) {
         this.okHttpClient = new OkHttpClient.Builder()
                 .retryOnConnectionFailure(true)
@@ -62,49 +50,28 @@ public class WebsocketManager {
         this.messageListener = messageListener;
         this.webSocket = null;
         this.activeTimerRepository = activeTimerRepository;
-        this.observerOwner = observerOwner;
     }
 
     private void upsertLocalTimerList(Timer timer) {
-        List<Timer> timers = this.activeTimersLiveData.getValue();
+        List<Timer> timers = this.activeTimerRepository.getAllActiveTimers().getValue();
 
         int i=0;
         for (; i<timers.size(); i++) {
             Timer t = timers.get(i);
             if (t.getId().equals(timer.getId())) {
-                timers.set(i, timer.copy());
+                this.activeTimerRepository.update(timer.copy());
                 break;
             }
         }
 
         // if we got to the end and didn't find it, add it
         if (i == timers.size()) {
-            timers.add(timer.copy());
+            this.activeTimerRepository.insert(timer.copy());
         }
-
-        this.websocketActiveTimers = timers
-                .stream()
-                .map(Timer::copy)
-                .collect(Collectors.toList());
-        this.activeTimersLiveData.setValue(timers);
     }
 
     private void removeTimerFromLocalTimerList(String timerId) {
-        List<Timer> timers = this.activeTimersLiveData.getValue();
-
-        for (int i=0; i<timers.size(); i++) {
-            Timer t = timers.get(i);
-            if (t.getId().equals(timerId)) {
-                timers.remove(i);
-                break;
-            }
-        }
-
-        this.websocketActiveTimers = timers
-                .stream()
-                .map(Timer::copy)
-                .collect(Collectors.toList());
-        this.activeTimersLiveData.setValue(timers);
+        this.activeTimerRepository.deleteById(timerId);
     }
 
     public void initialize(String authToken, String deviceId) {
@@ -174,133 +141,16 @@ public class WebsocketManager {
         };
 
         webSocket = okHttpClient.newWebSocket(webSocketRequest, webSocketListener);
+    }
 
-        this.repositoryActiveTimers = Objects
-                .requireNonNull(activeTimerRepository.getAllActiveTimers().getValue())
-                .stream()
-                .map(Timer::copy)
-                .collect(Collectors.toList());
-        this.websocketActiveTimers = this.repositoryActiveTimers
-                .stream()
-                .map(Timer::copy)
-                .collect(Collectors.toList());
+    private JSONObject fixFrigginTimer(Timer timer) throws JSONException {
+        JSONObject result = Timer.timerToJson(timer);
 
-        activeTimerRepository.getAllActiveTimers().observe(observerOwner, timers -> {
-            DiffUtil.calculateDiff(
-                    new DiffUtil.Callback() {
-                        @Override
-                        public int getOldListSize() {
-                            return websocketActiveTimers.size();
-                        }
-
-                        @Override
-                        public int getNewListSize() {
-                            return timers.size();
-                        }
-
-                        @Override
-                        public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
-                            return websocketActiveTimers.get(oldItemPosition).getId().equals(timers.get(newItemPosition).getId());
-                        }
-
-                        @Override
-                        public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
-                            return websocketActiveTimers.get(oldItemPosition).equals(timers.get(newItemPosition));
-                        }
-                    }
-            ).dispatchUpdatesTo(new ListUpdateCallback() {
-                @Override
-                public void onInserted(int position, int count) {
-                    websocketActiveTimers.subList(position, position + count).forEach(timer -> {
-                        sendUpdateTimerToWebsocket(timer, "added");
-                    });
-                }
-
-                @Override
-                public void onRemoved(int position, int count) {
-                    websocketActiveTimers.subList(position, position + count).forEach(timer -> {
-                        sendStopTimerToWebsocket(timer.getId(), timer.getSharedWith());
-                    });
-                }
-
-                @Override
-                public void onMoved(int fromPosition, int toPosition) {
-
-                }
-
-                @Override
-                public void onChanged(int position, int count, @Nullable Object payload) {
-                    websocketActiveTimers.subList(position, position + count).forEach(timer -> {
-                        sendUpdateTimerToWebsocket(timer, "updated");
-                    });
-                }
-            });
-            this.repositoryActiveTimers = timers
-                    .stream()
-                    .map(Timer::copy)
-                    .collect(Collectors.toList());
-            this.websocketActiveTimers = timers
-                    .stream()
-                    .map(Timer::copy)
-                    .collect(Collectors.toList());
-        });
-
-        this.activeTimersLiveData = new MutableLiveData<>(this.repositoryActiveTimers);
-        this.activeTimersLiveData.observe(observerOwner, timers -> {
-            DiffUtil.calculateDiff(
-                    new DiffUtil.Callback() {
-                        @Override
-                        public int getOldListSize() {
-                            return repositoryActiveTimers.size();
-                        }
-
-                        @Override
-                        public int getNewListSize() {
-                            return timers.size();
-                        }
-
-                        @Override
-                        public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
-                            return repositoryActiveTimers.get(oldItemPosition).getId().equals(timers.get(newItemPosition).getId());
-                        }
-
-                        @Override
-                        public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
-                            return repositoryActiveTimers.get(oldItemPosition).equals(timers.get(newItemPosition));
-                        }
-                    }
-            ).dispatchUpdatesTo(new ListUpdateCallback() {
-                @Override
-                public void onInserted(int position, int count) {
-                    repositoryActiveTimers.subList(position, position + count).forEach(timer -> {
-                        activeTimerRepository.insert(timer);
-                    });
-                }
-
-                @Override
-                public void onRemoved(int position, int count) {
-                    repositoryActiveTimers.subList(position, position + count).forEach(timer -> {
-                        activeTimerRepository.deleteById(timer.getId());
-                    });
-                }
-
-                @Override
-                public void onMoved(int fromPosition, int toPosition) {
-
-                }
-
-                @Override
-                public void onChanged(int position, int count, @Nullable Object payload) {
-                    repositoryActiveTimers.subList(position, position + count).forEach(timer -> {
-                        activeTimerRepository.update(timer);
-                    });
-                }
-            });
-            this.repositoryActiveTimers = timers
-                    .stream()
-                    .map(Timer::copy)
-                    .collect(Collectors.toList());
-        });
+        if (!result.has("userId")) {
+            Log.i("fixFrigginTimer", "userId is not set");
+            result.put("userId", "whattheheck");
+        }
+        return result;
     }
 
     public void sendUpdateTimerToWebsocket(Timer timer, String updateReason) {
@@ -309,13 +159,14 @@ public class WebsocketManager {
 
         String webSocketRequestString = null;
         try {
+            Log.i("ForegroundService", "Websocket, sendmessage to update timer");
             webSocketRequestString = new JSONObject()
                     .put("action", "sendmessage")
                     .put("data", new JSONObject()
                             .put("type", "updateTimer")
                             .put("reason", updateReason)
                             .put("shareWith", shareWithArray)
-                            .put("timer", Timer.timerToJson(timer))
+                            .put("timer", fixFrigginTimer(timer))
                     )
                     .toString();
         } catch (Exception e) {

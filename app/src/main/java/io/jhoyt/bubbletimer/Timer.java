@@ -2,6 +2,7 @@ package io.jhoyt.bubbletimer;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.compose.runtime.external.kotlinx.collections.immutable.ImmutableSet;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -9,6 +10,7 @@ import org.json.JSONObject;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -147,10 +149,11 @@ public class Timer {
     }
 
     public void shareWith(String userName) {
-        Set<String> set = new HashSet<>(this.sharedWith);
-        set.add(userName);
+        Set<String> shareWith = new HashSet<>();
+        shareWith.addAll(this.sharedWith);
+        shareWith.add(userName);
 
-        this.sharedWith = Set.copyOf(set);
+        this.sharedWith = Collections.unmodifiableSet(shareWith);
     }
 
     public TimerData getTimerData() {

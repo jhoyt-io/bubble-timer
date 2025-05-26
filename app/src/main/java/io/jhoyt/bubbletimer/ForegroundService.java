@@ -50,7 +50,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
     private final Handler timerHandler;
     private Runnable updater;
 
-    private final WebsocketManager websocketManager;
+    private WebsocketManager websocketManager;
 
     private ActiveTimerRepository activeTimerRepository;
     private List<Timer> activeTimers;
@@ -123,20 +123,6 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         this.expandedWindow = null;
         this.vibrator = null;
 
-        this.websocketManager = new WebsocketManager(
-                new WebsocketManager.WebsocketMessageListener() {
-                    @Override
-                    public void onFailure(String reason) {
-                        Log.i("ForegroundService", "Websocket failure: " + reason);
-
-                        Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
-                        message.putExtra("command", "sendAuthToken");
-                        LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
-                    }
-                },
-                activeTimerRepository,
-                this
-        );
     }
 
     @Override
@@ -149,6 +135,20 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         super.onCreate();
 
         this.activeTimerRepository = new ActiveTimerRepository(getApplication());
+        this.websocketManager = new WebsocketManager(
+                new WebsocketManager.WebsocketMessageListener() {
+                    @Override
+                    public void onFailure(String reason) {
+                        Log.i("ForegroundService", "Websocket failure: " + reason);
+
+                        Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
+                        message.putExtra("command", "sendAuthToken");
+                        LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
+                    }
+                },
+                activeTimerRepository
+        );
+
         this.activeTimers = new ArrayList<>();
         this.windowsByTimerId = new HashMap<>();
 
@@ -200,6 +200,8 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                     activeTimers.subList(position, position + count).forEach(timer -> {
                         windowsByTimerId.get(timer.getId()).close();
                         windowsByTimerId.remove(timer.getId());
+
+                        websocketManager.sendStopTimerToWebsocket(timer.getId(), timer.getSharedWith());
                     });
                 }
 
@@ -327,12 +329,27 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
     @Override
     public void onTimerUpdated(Timer timer) {
+        if (timer.getUserId() == null) {
+            Log.i("ForegroundService", "userId from view is null");
+        } else {
+            Log.i("ForegroundService", "userId from view is NOT null: " + timer.getUserId());
+        }
         this.activeTimerRepository.update(timer);
+
+        // hack to ensure userid is set?
+        Timer timerFromRepository = this.activeTimerRepository.getById(timer.getId());
+        if (timerFromRepository.getUserId() == null) {
+            Log.i("ForegroundService", "userId from repo is null");
+        } else {
+            Log.i("ForegroundService", "userId from repo is NOT null: " + timerFromRepository.getUserId());
+        }
+        this.websocketManager.sendUpdateTimerToWebsocket(timerFromRepository, "who knows");
     }
 
     @Override
     public void onTimerStopped(Timer timer) {
         this.activeTimerRepository.deleteById(timer.getId());
+        this.websocketManager.sendStopTimerToWebsocket(timer.getId(), timer.getSharedWith());
 
         notificationBuilder.setContentText("No active timers.");
         notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());

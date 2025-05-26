@@ -19,6 +19,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import io.jhoyt.bubbletimer.db.Tag;
 import io.jhoyt.bubbletimer.db.TagViewModel;
@@ -31,8 +32,10 @@ import io.jhoyt.bubbletimer.db.TimerViewModel;
  */
 public class TimerListFragment extends Fragment {
 
+    private static final String ARG_USER_ID = "userId";
     private static final String ARG_TAG = "tag";
 
+    private String userId;
     private String tag;
 
     public TimerListFragment() {
@@ -47,9 +50,10 @@ public class TimerListFragment extends Fragment {
      * @return A new instance of fragment TimerListFragment.
      */
     // TODO: Rename and change types and number of parameters
-    public static TimerListFragment newInstance(String tag) {
+    public static TimerListFragment newInstance(String userId, String tag) {
         TimerListFragment fragment = new TimerListFragment();
         Bundle args = new Bundle();
+        args.putString(ARG_USER_ID, userId);
         args.putString(ARG_TAG, tag);
         fragment.setArguments(args);
         return fragment;
@@ -60,6 +64,7 @@ public class TimerListFragment extends Fragment {
         super.onCreate(savedInstanceState);
         if (getArguments() != null) {
             tag = getArguments().getString(ARG_TAG);
+            userId = getArguments().getString(ARG_USER_ID);
         }
     }
 
@@ -124,8 +129,8 @@ public class TimerListFragment extends Fragment {
                 TimerView timerView = cardTimer.findViewById(R.id.timer);
                 // TODO: this seems to be the wrong use of these types
                 timerView.setTimer(new Timer(new TimerData(
-                        "" + timer.id,
-                        "",
+                        String.valueOf(timer.id),
+                        userId,
                         timer.title,
                         timer.duration,
                         null,

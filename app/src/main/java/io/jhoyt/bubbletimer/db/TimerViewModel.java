@@ -5,42 +5,54 @@ import android.app.Application;
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TimerViewModel extends AndroidViewModel {
-    private final TimerRepository timerRepository;
-
-    private final LiveData<List<Timer>> allTimers;
+    private final TimerRepository repository;
+    private final MutableLiveData<Boolean> isDeleting = new MutableLiveData<>(false);
+    private final AtomicBoolean deletionInProgress = new AtomicBoolean(false);
 
     public TimerViewModel(@NonNull Application application) {
         super(application);
-
-        timerRepository = new TimerRepository(application);
-        allTimers = timerRepository.getAllTimers();
+        repository = new TimerRepository(application);
     }
 
     public LiveData<List<Timer>> getAllTimers() {
-        return allTimers;
+        return repository.getAllTimers();
     }
 
     public LiveData<List<Timer>> getAllTimersWithTag(String tag) {
-        return timerRepository.getAllTimersWithTag(tag);
+        return repository.getAllTimersWithTag(tag);
     }
 
     public LiveData<Timer> getById(int id) {
-        return timerRepository.getById(id);
+        return repository.getById(id);
     }
 
     public void insert(Timer timer) {
-        timerRepository.insert(timer);
+        repository.insert(timer);
     }
 
     public void update(Timer timer) {
-        timerRepository.update(timer);
+        repository.update(timer);
     }
 
-    public void deleteById(int timerId) {
-        timerRepository.deleteById(timerId);
+    public void deleteById(int id) {
+        if (deletionInProgress.compareAndSet(false, true)) {
+            try {
+                isDeleting.postValue(true);
+                repository.deleteById(id);
+            } finally {
+                isDeleting.postValue(false);
+                deletionInProgress.set(false);
+            }
+        }
+    }
+
+    public LiveData<Boolean> isDeleting() {
+        return isDeleting;
     }
 }

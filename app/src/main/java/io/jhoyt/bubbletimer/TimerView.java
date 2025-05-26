@@ -41,11 +41,13 @@ public class TimerView extends View {
     private RectF littleBubbleIconRect = new RectF(0.0f, 0.0f, 0.0f, 0.0f);
 
     private Timer timer;
+    private long lastUpdateTime = 0;
+    private static final long UPDATE_THRESHOLD = 1000; // 1 second
 
     public TimerView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        this.timer = new Timer();
+        this.timer = null; //new Timer();
 
         this.textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         this.textPaint.setColor(Color.BLACK);
@@ -133,10 +135,29 @@ public class TimerView extends View {
         this.timer.setTags(tags);
     }
 
+    public boolean needsUpdate() {
+        if (timer == null || timer.isPaused()) {
+            return false;
+        }
+        
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastUpdateTime >= UPDATE_THRESHOLD) {
+            lastUpdateTime = currentTime;
+            return true;
+        }
+        return false;
+    }
+
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
         super.onDraw(canvas);
-
+        if (timer == null) {
+            return;
+        }
+        
+        // Update last update time when drawing
+        lastUpdateTime = System.currentTimeMillis();
+        
         Duration remaining = this.timer.getRemainingDuration();
         long remainingSeconds = remaining.getSeconds() + (remaining.getNano() > 0 ? 1 : 0);
         String durationText = DurationUtil.getFormattedDuration(remaining);

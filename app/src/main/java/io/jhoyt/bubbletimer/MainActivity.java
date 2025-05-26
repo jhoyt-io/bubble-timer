@@ -120,14 +120,23 @@ public class MainActivity extends AppCompatActivity {
         this.updater = () -> {
             LinearLayout layout = activeTimerList.findViewById(R.id.activeTimerList);
             if (layout != null) {
+                boolean needsUpdate = false;
                 for (int i = 0; i < layout.getChildCount(); i++) {
                     View cardTimer = layout.getChildAt(i);
                     TimerView timerView = (TimerView) cardTimer.findViewById(R.id.timer);
-                    timerView.invalidate();
+                    if (timerView != null && timerView.needsUpdate()) {
+                        needsUpdate = true;
+                        timerView.invalidate();
+                    }
+                }
+                
+                // Only schedule next update if we actually updated something
+                if (needsUpdate) {
+                    timerHandler.postDelayed(updater, 1000);
+                } else {
+                    timerHandler.postDelayed(updater, 100); // Check more frequently if no updates needed
                 }
             }
-
-            timerHandler.postDelayed(updater, 1000);
         };
         timerHandler.post(updater);
 
@@ -168,7 +177,7 @@ public class MainActivity extends AppCompatActivity {
 
             // Set up pager for tabs
             ViewPager2 viewPager = findViewById(R.id.timerPager);
-            viewPager.setAdapter(new TimerListCollectionAdapter(this, tabs));
+            viewPager.setAdapter(new TimerListCollectionAdapter(this, userId, tabs));
 
             // Tab layout
             TabLayout tabLayout = findViewById(R.id.tabLayout);
@@ -195,7 +204,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void deleteTimer(int id) {
-        this.timerViewModel.deleteById(id);
+        // Show loading state if needed
+        timerViewModel.isDeleting().observe(this, isDeleting -> {
+            if (isDeleting) {
+                // You could show a loading indicator here if needed
+                // findViewById(R.id.loadingIndicator).setVisibility(View.VISIBLE);
+            } else {
+                // findViewById(R.id.loadingIndicator).setVisibility(View.GONE);
+            }
+        });
+        
+        // Delete timer - this will update UI immediately through the cache
+        timerViewModel.deleteById(id);
     }
 
     @Override
