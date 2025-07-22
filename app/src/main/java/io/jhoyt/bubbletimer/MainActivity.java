@@ -62,30 +62,45 @@ public class MainActivity extends AppCompatActivity {
             String command = intent.getStringExtra("command");
 
             if (command.equals("sendAuthToken")) {
+                Log.i("MainActivity", "sendAuthToken command received, fetching auth session...");
                 // Fetch auth token and send to the foreground service
                 Amplify.Auth.fetchAuthSession(authSession -> {
+                    Log.i("MainActivity", "Auth session fetched successfully");
                     AWSCognitoAuthSession cognitoAuthSession = (AWSCognitoAuthSession) authSession;
 
                     Amplify.Auth.getCurrentUser(authUser -> {
                         userId = authUser.getUsername();
                         String idToken = cognitoAuthSession.getUserPoolTokensResult().getValue().getIdToken();
                         idToken = idToken != null ? idToken : "";
-                        Log.i("MainActivity", "Token: " + idToken);
+                        Log.i("MainActivity", "Token length: " + (idToken != null ? idToken.length() : 0));
                         Log.i("MainActivity", "Username: " + userId);
+                        Log.i("MainActivity", "Is signed in: " + cognitoAuthSession.isSignedIn());
+
+                        if (userId == null || userId.isEmpty()) {
+                            Log.e("MainActivity", "ERROR: userId is null or empty after authentication!");
+                        }
+                        
+                        if (idToken == null || idToken.isEmpty()) {
+                            Log.e("MainActivity", "ERROR: idToken is null or empty after authentication!");
+                        }
 
                         Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
                         message.putExtra("command", "receiveAuthToken");
                         message.putExtra("authToken", idToken);
                         message.putExtra("userId", userId);
 
+                        Log.i("MainActivity", "Sending auth token to ForegroundService");
                         LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(message);
+                        
+                        // Update the adapter with the new userId
+                        runOnUiThread(() -> setupTabsAndAdapterIfReady());
                     }, error -> {
-
+                        Log.e("MainActivity", "Error getting current user", error);
+                        Log.e("MainActivity", "Error details: " + error.getCause());
                     });
                 }, error -> {
-                    Log.i("MainActivity", "ERROR: " + error.getMessage() +
-                            ", recovery suggestion: " + error.getRecoverySuggestion() +
-                            ", umm: " + error.getStackTrace()[0].toString());
+                    Log.e("MainActivity", "Error fetching auth session", error);
+                    Log.e("MainActivity", "Auth session error details: " + error.getCause());
                 });
             }
         }
@@ -124,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
                 for (int i = 0; i < layout.getChildCount(); i++) {
                     View cardTimer = layout.getChildAt(i);
                     TimerView timerView = (TimerView) cardTimer.findViewById(R.id.timer);
-                    if (timerView != null && timerView.needsUpdate()) {
+                    if (timerView != null) {
                         needsUpdate = true;
                         timerView.invalidate();
                     }
@@ -164,32 +179,50 @@ public class MainActivity extends AppCompatActivity {
         });
 
         this.timerViewModel = new ViewModelProvider(this).get(TimerViewModel.class);
+        this.tagViewModel = new ViewModelProvider(this).get(TagViewModel.class);
+
+        // Set up ViewPager2 immediately with local data
+        setupTabsAndAdapterIfReady();
 
         LocalBroadcastManager.getInstance(this)
                 .registerReceiver(broadcastReceiver, new IntentFilter(MainActivity.MESSAGE_RECEIVER_ACTION));
 
-        // Set up tabs
-        this.tagViewModel = new ViewModelProvider(this).get(TagViewModel.class);
-        this.tagViewModel.getAllTags().observe(this, tags -> {
+        // Request auth token on behalf of the service  (TODO: why??)
+        Log.i("MainActivity", "Requesting auth token for ForegroundService");
+        Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
+        message.putExtra("command", "sendAuthToken");
+        LocalBroadcastManager.getInstance(this).sendBroadcast(message);
+        
+        // Also check if user is already signed in
+        Amplify.Auth.getCurrentUser(authUser -> {
+            Log.i("MainActivity", "Current user check - Username: " + authUser.getUsername());
+            userId = authUser.getUsername();
+        }, error -> {
+            Log.e("MainActivity", "Error getting current user on startup: ", error);
+        });
+    }
+
+    private void setupTabsAndAdapterIfReady() {
+        if (tagViewModel == null) {
+            Log.d("MainActivity", "setupTabsAndAdapterIfReady - initializing tagViewModel");
+            tagViewModel = new ViewModelProvider(this).get(TagViewModel.class);
+        }
+        tagViewModel.getAllTags().observe(this, tags -> {
+            Log.d("MainActivity", "setupTabsAndAdapterIfReady - got " + tags.size() + " tags");
             List<String> tabs = new ArrayList<>(tags.size()+1);
             tabs.add("ALL");
             tags.forEach(tag -> tabs.add(tag.name));
 
-            // Set up pager for tabs
             ViewPager2 viewPager = findViewById(R.id.timerPager);
+            Log.d("MainActivity", "setupTabsAndAdapterIfReady - setting up ViewPager2 with " + tabs.size() + " tabs");
             viewPager.setAdapter(new TimerListCollectionAdapter(this, userId, tabs));
 
-            // Tab layout
             TabLayout tabLayout = findViewById(R.id.tabLayout);
             new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> {
+                Log.d("MainActivity", "setupTabsAndAdapterIfReady - setting tab " + position + " to: " + tabs.get(position));
                 tab.setText(tabs.get(position));
             }).attach();
         });
-
-        // Request auth token on behalf of the service  (TODO: why??)
-        Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
-        message.putExtra("command", "sendAuthToken");
-        LocalBroadcastManager.getInstance(this).sendBroadcast(message);
     }
 
     public void startTimer(String name, Duration duration, Set<String> tags) {
@@ -263,9 +296,12 @@ public class MainActivity extends AppCompatActivity {
                     tags = Set.of(tagsString.split("#~#"));
                 }
 
-                List<String> allTags = this.tagViewModel.getAllTags().getValue().stream()
-                        .map(tag -> tag.name)
-                        .collect(Collectors.toList());
+                final List<String> allTags =
+                    this.tagViewModel.getAllTags().getValue() == null
+                    ? new ArrayList<>()
+                    : this.tagViewModel.getAllTags().getValue().stream()
+                            .map(tag -> tag.name)
+                            .collect(Collectors.toList());
                 tags.forEach(tag -> {
                     if (!tag.trim().isEmpty() && !allTags.contains(tag) ) {
                         this.tagViewModel.insert(new Tag(tag));
@@ -321,6 +357,10 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+    }
+
+    public String getUserId() {
+        return userId;
     }
 
     @Override

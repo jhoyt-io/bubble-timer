@@ -1,6 +1,7 @@
 package io.jhoyt.bubbletimer.db;
 
 import android.app.Application;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
@@ -33,14 +34,17 @@ public class TimerViewModel extends AndroidViewModel {
     }
 
     public void insert(Timer timer) {
+        Log.d("TimerViewModel", "Inserting timer: " + timer.title + " (id: " + timer.id + ")");
         repository.insert(timer);
     }
 
     public void update(Timer timer) {
+        Log.d("TimerViewModel", "Updating timer: " + timer.title + " (id: " + timer.id + ")");
         repository.update(timer);
     }
 
     public void deleteById(int id) {
+        Log.d("TimerViewModel", "Deleting timer with id: " + id);
         if (deletionInProgress.compareAndSet(false, true)) {
             try {
                 isDeleting.postValue(true);

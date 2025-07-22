@@ -41,6 +41,8 @@ public class ActiveTimerListFragment extends Fragment {
                 listLayout.addView(layout);
 
                 TimerView timerView = layout.findViewById(R.id.timer);
+                timerView.setLayoutMode(TimerView.MODE_LIST_ITEM);
+                timerView.setCurrentUserId(((MainActivity)getActivity()).getUserId());
                 timerView.setTimer(timer);
 
                 layout.findViewById(R.id.stopButton).setOnClickListener(new View.OnClickListener() {

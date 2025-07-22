@@ -7,12 +7,14 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.util.Comparator;
@@ -65,28 +67,47 @@ public class TimerListFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.d("TimerListFragment", "onCreate called");
         if (getArguments() != null) {
             tag = getArguments().getString(ARG_TAG);
             userId = getArguments().getString(ARG_USER_ID);
+            Log.d("TimerListFragment", "onCreate - tag: " + tag + ", userId: " + userId);
         }
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
+        Log.d("TimerListFragment", "onCreateView called");
         final TimerViewModel timerViewModel = new ViewModelProvider(requireActivity()).get(TimerViewModel.class);
         final TagViewModel tagViewModel = new ViewModelProvider(requireActivity()).get(TagViewModel.class);
 
         final boolean isAllTab = tag.equals("ALL");
+        Log.d("TimerListFragment", "onCreateView - isAllTab: " + isAllTab);
 
         // Inflate the layout for this fragment
         final View view = inflater.inflate(R.layout.fragment_timer_list, container, false);
+        Log.d("TimerListFragment", "Layout inflated");
 
         final LinearLayout scrollFragmentContainer = view.findViewById(R.id.scrollFragmentContainer);
+        final LinearLayout listLayout = view.findViewById(R.id.timerList);
+        final ProgressBar loadingIndicator = view.findViewById(R.id.loadingIndicator);
+        final TextView emptyState = view.findViewById(R.id.emptyState);
+
+        Log.d("TimerListFragment", "Found views - loadingIndicator: " + (loadingIndicator != null) + 
+            ", emptyState: " + (emptyState != null) + 
+            ", listLayout: " + (listLayout != null));
+
+        // Show loading state initially
+        loadingIndicator.setVisibility(View.VISIBLE);
+        listLayout.setVisibility(View.GONE);
+        emptyState.setVisibility(View.GONE);
+        Log.d("TimerListFragment", "Set initial visibility states");
 
         // Configure tab button
         final TextView configureTab = view.findViewById(R.id.configureTab);
         if (isAllTab) {
+            Log.d("TimerListFragment", "Removing configure tab for ALL tab");
             scrollFragmentContainer.removeViewAt(0);
         } else {
             configureTab.setOnClickListener(textView -> {
@@ -105,12 +126,25 @@ public class TimerListFragment extends Fragment {
             });
         }
 
-        // List of timers
-        final LinearLayout listLayout = view.findViewById(R.id.timerList);
-
         Observer<List<Timer>> observer = timers -> {
+            Log.d("TimerListFragment", "Observer called with " + (timers != null ? timers.size() : "null") + " timers");
             listLayout.removeAllViews();
             timerViews.clear();
+
+            // Hide loading indicator
+            loadingIndicator.setVisibility(View.GONE);
+            Log.d("TimerListFragment", "Hidden loading indicator");
+
+            if (timers == null || timers.isEmpty()) {
+                Log.d("TimerListFragment", "No timers to display, showing empty state");
+                emptyState.setVisibility(View.VISIBLE);
+                listLayout.setVisibility(View.GONE);
+                return;
+            }
+
+            emptyState.setVisibility(View.GONE);
+            listLayout.setVisibility(View.VISIBLE);
+            Log.d("TimerListFragment", "Showing timer list with " + timers.size() + " timers");
 
             timers.sort(new Comparator<Timer>() {
                 @Override
@@ -127,11 +161,14 @@ public class TimerListFragment extends Fragment {
                 }
             });
 
+            Log.d("TimerListFragment", "Adding " + timers.size() + " timers to view");
             timers.forEach(timer -> {
+                Log.d("TimerListFragment", "Creating view for timer: " + timer.title + " (id: " + timer.id + ")");
                 View cardTimer = inflater.inflate(R.layout.card_timer, listLayout, false);
                 timerViews.put(timer.id, cardTimer);
 
                 TimerView timerView = cardTimer.findViewById(R.id.timer);
+                timerView.setLayoutMode(TimerView.MODE_LIST_ITEM);
                 timerView.setTimer(new io.jhoyt.bubbletimer.Timer(new TimerData(
                         String.valueOf(timer.id),
                         userId,
@@ -179,10 +216,13 @@ public class TimerListFragment extends Fragment {
             });
         };
 
+        Log.d("TimerListFragment", "Setting up observer for tag: " + tag);
         if (tag.equals("ALL")) {
-            timerViewModel.getAllTimers().observe(requireActivity(), observer);
+            Log.d("TimerListFragment", "Observing all timers");
+            timerViewModel.getAllTimers().observe(getViewLifecycleOwner(), observer);
         } else {
-            timerViewModel.getAllTimersWithTag(tag).observe(requireActivity(), observer);
+            Log.d("TimerListFragment", "Observing timers with tag: " + tag);
+            timerViewModel.getAllTimersWithTag(tag).observe(getViewLifecycleOwner(), observer);
         }
 
         return view;

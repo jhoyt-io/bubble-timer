@@ -1,5 +1,6 @@
 package io.jhoyt.bubbletimer;
 
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
@@ -20,6 +21,7 @@ public class TimerListCollectionAdapter extends FragmentStateAdapter {
     @NonNull
     @Override
     public Fragment createFragment(int position) {
+        Log.d("TimerListCollectionAdapter", "Creating fragment for position " + position + " with tag: " + tags.get(position));
         return TimerListFragment.newInstance(userId, tags.get(position));
     }
 

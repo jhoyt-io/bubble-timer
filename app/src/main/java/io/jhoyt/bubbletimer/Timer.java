@@ -149,7 +149,7 @@ public class Timer {
     }
 
     public void setSharedWith(Set<String> sharedWith) {
-        this.sharedWith = sharedWith;
+        this.sharedWith = Collections.unmodifiableSet(sharedWith);
     }
 
     public void shareWith(String userName) {

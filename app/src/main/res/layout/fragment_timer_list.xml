@@ -6,30 +6,51 @@
     android:layout_height="match_parent"
     tools:context=".TimerListFragment">
 
-    <LinearLayout
-        android:id="@+id/scrollFragmentContainer"
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="0dp" >
-
-        <TextView
-            android:id="@+id/configureTab"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@color/material_dynamic_neutral80"
-            android:text="Configure Tab"
-            android:textAlignment="center"
-            android:textAllCaps="false" />
+        android:layout_height="wrap_content">
 
         <LinearLayout
-            android:id="@+id/timerList"
+            android:id="@+id/scrollFragmentContainer"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp" >
+            android:padding="0dp">
+
+            <TextView
+                android:id="@+id/configureTab"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:padding="16dp"
+                android:text="Configure Tab"
+                android:textSize="16sp" />
+
+            <LinearLayout
+                android:id="@+id/timerList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp" />
+
         </LinearLayout>
 
-    </LinearLayout>
+        <ProgressBar
+            android:id="@+id/loadingIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/emptyState"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="No timers yet"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
 </android.widget.ScrollView>

@@ -47,6 +47,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
     private PowerManager.WakeLock wakeLock;
 
+    private String currentUserId;
     private final Handler timerHandler;
     private Runnable updater;
 
@@ -59,6 +60,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
     private Window expandedWindow;
 
     private Boolean isOverlayShown = false;
+    private boolean isDebugModeEnabled = false;  // Track if debug mode is enabled
 
     private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -101,16 +103,38 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 Log.i("ForegroundService", "Auth token received");
 
                 String authToken = intent.getStringExtra("authToken");
-                String userId = intent.getStringExtra("userId");
+                currentUserId = intent.getStringExtra("userId");
                 String androidId = Secure.getString(
                         getApplicationContext().getContentResolver(),
                         Secure.ANDROID_ID);
 
-                Log.i("ForegroundService", "Auth token: " + authToken);
-                Log.i("ForegroundService", "User id: " + userId);
+                Log.i("ForegroundService", "Auth token length: " + (authToken != null ? authToken.length() : 0));
+                Log.i("ForegroundService", "User id: " + currentUserId);
                 Log.i("ForegroundService", "Android id: " + androidId);
+                
+                if (authToken == null || authToken.isEmpty()) {
+                    Log.e("ForegroundService", "ERROR: Received null or empty auth token!");
+                }
+                
+                if (currentUserId == null || currentUserId.isEmpty()) {
+                    Log.e("ForegroundService", "ERROR: Received null or empty user ID!");
+                }
+                
+                if (androidId == null || androidId.isEmpty()) {
+                    Log.e("ForegroundService", "ERROR: Android ID is null or empty!");
+                }
 
-                websocketManager.initialize(authToken, androidId);
+                Log.i("ForegroundService", "Initializing WebSocket with received credentials");
+                websocketManager.initialize(authToken, androidId, currentUserId);
+            } else if (command.equals("toggleDebugMode")) {
+                isDebugModeEnabled = !isDebugModeEnabled;
+                // Update debug mode for all windows
+                windowsByTimerId.forEach((timerId, window) -> {
+                    window.setDebugMode(isDebugModeEnabled);
+                });
+                if (expandedWindow != null) {
+                    expandedWindow.setDebugMode(isDebugModeEnabled);
+                }
             }
         }
     };
@@ -169,6 +193,38 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                         notificationBuilder.setContentText(statusText);
                         notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
                     }
+
+                    @Override
+                    public void onTimerReceived(Timer timer) {
+                        if (timer == null) {
+                            // This is a signal to clean up UI state
+                            // Create a copy of the entries to avoid ConcurrentModificationException
+                            new HashMap<>(windowsByTimerId).forEach((timerId, window) -> {
+                                window.close();
+                                windowsByTimerId.remove(timerId);
+                            });
+                            return;
+                        }
+                        
+                        Log.i("ForegroundService", "Received timer update from WebSocket: " + timer.getId());
+                        
+                        // Update the UI for this timer if it's currently displayed
+                        if (windowsByTimerId.containsKey(timer.getId())) {
+                            Window window = windowsByTimerId.get(timer.getId());
+                            if (window.isOpen()) {
+                                // Update the timer in the window
+                                window.getTimerView().setTimer(timer);
+                                window.invalidate();
+                            }
+                        }
+                        
+                        // If this is a new timer and overlay is shown, create a new window for it
+                        if (!windowsByTimerId.containsKey(timer.getId()) && isOverlayShown) {
+                            Window window = new Window(getApplicationContext(), false, currentUserId);
+                            window.open(timer, ForegroundService.this);
+                            windowsByTimerId.put(timer.getId(), window);
+                        }
+                    }
                 },
                 activeTimerRepository
         );
@@ -203,7 +259,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 @Override
                 public void onInserted(int position, int count) {
                     timers.subList(position, position + count).forEach(timer -> {
-                        Window window = new Window(getApplicationContext(), false);
+                        Window window = new Window(getApplicationContext(), false, currentUserId);
 
                         if (isOverlayShown) {
                             window.open(timer, ForegroundService.this);
@@ -222,8 +278,15 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                     }
 
                     activeTimers.subList(position, position + count).forEach(timer -> {
-                        windowsByTimerId.get(timer.getId()).close();
-                        windowsByTimerId.remove(timer.getId());
+                        Window window = windowsByTimerId.get(timer.getId());
+                        if (window != null) {
+                            try {
+                                window.close();
+                            } catch (Exception e) {
+                                Log.e("ForegroundService", "Error while closing: ", e);
+                            }
+                            windowsByTimerId.remove(timer.getId());
+                        }
 
                         websocketManager.sendStopTimerToWebsocket(timer.getId(), timer.getSharedWith());
                     });
@@ -287,6 +350,12 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
             if (this.expandedWindow != null) {
                 this.expandedWindow.invalidate();
             }
+            
+            // Check WebSocket connection status and attempt reconnection if needed
+            if (websocketManager != null && websocketManager.getConnectionState() == WebsocketManager.ConnectionState.DISCONNECTED) {
+                Log.i("ForegroundService", "WebSocket is disconnected, attempting to reconnect");
+                websocketManager.forceReconnect();
+            }
 
             boolean shouldAlarm = false;
             if (!activeTimers.isEmpty()) {
@@ -338,7 +407,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             if (this.expandedWindow == null) {
-                this.expandedWindow = new Window(getApplicationContext(), true);
+                this.expandedWindow = new Window(getApplicationContext(), true, currentUserId);
             }
         }
 
