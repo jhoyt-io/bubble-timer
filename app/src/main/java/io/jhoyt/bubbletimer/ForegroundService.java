@@ -447,7 +447,14 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
     @Override
     public void onBubbleDismiss(Timer timer) {
-        this.onTimerStopped(timer);
+        // Only dismiss the bubble, do not stop the timer
+        Window window = windowsByTimerId.get(timer.getId());
+        if (window != null) {
+            window.close();
+        }
+        if (expandedWindow != null && expandedWindow.isOpen()) {
+            expandedWindow.close();
+        }
     }
 
     @Override

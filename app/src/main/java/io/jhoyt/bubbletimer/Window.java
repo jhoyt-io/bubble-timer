@@ -60,7 +60,7 @@ public class Window {
     private float dx, dy;
     private int lastx, lasty;
     private boolean dragging = false;
-    private boolean wasPulledToDismissCircle = false;
+    private DismissCircleView.DismissCircle pulledToDismissCircle = null;
 
     public interface BubbleEventListener {
         void onBubbleDismiss(Timer timer);
@@ -209,7 +209,7 @@ public class Window {
                         }
 
                         dragging = true;
-                        wasPulledToDismissCircle = false;
+                        pulledToDismissCircle = null;
                         timer.setDragging(true);
                         // Only show dismiss circle for non-expanded bubbles
                         if (timer.isSmallMode()) {
@@ -244,77 +244,25 @@ public class Window {
                         float newX = event.getRawX() - origdx;
                         float newY = event.getRawY() - origdy;
 
-                        // If near dismiss circle, move timer to circle position
-                        if (dismissCircle.isNearDismissCircle(event.getRawX(), event.getRawY())) {
-                            float[] dismissPos = dismissCircle.getDismissCirclePosition();
-
-                            Log.d("Window", "=== Dismiss Circle Debug ===");
-                            Log.d("Window", "Dismiss circle position: [" + dismissPos[0] + "," + dismissPos[1] + "]");
-                            
-                            // Set gravity to center the window
+                        // Check proximity to all dismiss circles
+                        DismissCircleView.DismissCircle nearest = dismissCircle.getNearestDismissCircle(event.getRawX(), event.getRawY());
+                        if (nearest != null) {
                             params.gravity = Gravity.TOP | Gravity.START;
-                            
-                            // Calculate position relative to top-left corner
-                            newX = dismissPos[0] - (view.getWidth() / 2);
-                            newY = dismissPos[1] - (view.getHeight() / 2);
-                            
-                            // Ensure the window stays within screen bounds
+                            newX = nearest.centerX - (view.getWidth() / 2);
+                            newY = nearest.centerY - (view.getHeight() / 2);
                             newX = Math.max(0, Math.min(newX, width- view.getWidth()));
                             newY = Math.max(0, Math.min(newY, height- view.getHeight()));
-
-                            Log.d("Window", "metrics.widthPixels: [" + width + "]");
-                            Log.d("Window", "view.getWidth(): [" + view.getWidth() + "]");
-                            Log.d("Window", "metrics.heightPixels: [" + height + "]");
-                            Log.d("Window", "view.getHeight(): [" + view.getHeight() + "]");
-
-                            // Ensure the window stays visible
-                            params.flags &= ~FLAG_LAYOUT_NO_LIMITS;
-                            
-                            // Check if timer is actually centered on dismiss circle
                             float centerX = newX + (view.getWidth() / 2);
                             float centerY = newY + (view.getHeight() / 2);
-                            float dx = centerX - dismissPos[0];
-                            float dy = centerY - dismissPos[1];
+                            float dx = centerX - nearest.centerX;
+                            float dy = centerY - nearest.centerY;
                             float distance = (float) Math.sqrt(dx * dx + dy * dy);
-                            
-                            // If timer is close enough to center of dismiss circle, mark it as pulled to dismiss
-                            wasPulledToDismissCircle = distance < DISMISS_THRESHOLD_PIXELS;
-                            
-                            // Update debug overlay only if debug mode is enabled
-                            if (isDebugModeEnabled) {
-                                StringBuilder dismissDebugInfo = new StringBuilder();
-                                dismissDebugInfo.append("=== Dismiss Circle Debug ===\n");
-                                dismissDebugInfo.append("Dismiss Circle: [").append(dismissPos[0]).append(",").append(dismissPos[1]).append("]\n");
-                                dismissDebugInfo.append("Timer Center: [").append(centerX).append(",").append(centerY).append("]\n");
-                                dismissDebugInfo.append("Distance: ").append(distance).append("\n");
-                                dismissDebugInfo.append("Is Pulled: ").append(wasPulledToDismissCircle).append("\n");
-                                dismissDebugInfo.append("New Position: [").append(newX).append(",").append(newY).append("]\n");
-                                updateDebugText(dismissDebugInfo.toString());
-                            }
-
-                            Log.d("Window", "New position: [" + newX + "," + newY + "]");
-                            Log.d("Window", "Is currently pulled to dismiss circle: " + wasPulledToDismissCircle);
-                            Log.d("Window", "Distance to dismiss circle: " + distance);
+                            pulledToDismissCircle = (distance < DISMISS_THRESHOLD_PIXELS) ? nearest : null;
                         } else {
-                            // Calculate position relative to top-left corner
                             newX = event.getRawX() + origdx - (view.getWidth() / 2);
                             newY = event.getRawY() + origdy - (view.getHeight() / 2);
-
-                            // Restore the original flags when not near dismiss circle
                             params.flags |= FLAG_LAYOUT_NO_LIMITS;
-                            
-                            // Not near dismiss circle, so not pulled
-                            wasPulledToDismissCircle = false;
-
-                            // Update debug overlay only if debug mode is enabled
-                            if (isDebugModeEnabled) {
-                                StringBuilder dragDebugInfo = new StringBuilder();
-                                dragDebugInfo.append("=== Drag Debug ===\n");
-                                dragDebugInfo.append("New Position: [").append(newX).append(",").append(newY).append("]\n");
-                                dragDebugInfo.append("Raw Event: [").append(event.getRawX()).append(",").append(event.getRawY()).append("]\n");
-                                dragDebugInfo.append("dx/dy: [").append(origdx).append(",").append(origdy).append("]\n");
-                                updateDebugText(dragDebugInfo.toString());
-                            }
+                            pulledToDismissCircle = null;
                         }
 
                         params.x = (int) newX;
@@ -388,6 +336,29 @@ public class Window {
                             }
                             // Ignore other touches in share menu
                             return false;
+                        }
+
+                        // Handle dismiss logic for any circle
+                        if (pulledToDismissCircle != null) {
+                            if (pulledToDismissCircle.type == DismissCircleView.DismissType.STOP) {
+                                // Stop timer and dismiss
+                                params.x = lastx;
+                                params.y = lasty;
+                                params.setCanPlayMoveAnimation(true);
+                                windowManager.updateViewLayout(view, params);
+                                bubbleEventListener.onTimerStopped(timer.getTimer());
+                                Window.this.close();
+                                return true;
+                            } else if (pulledToDismissCircle.type == DismissCircleView.DismissType.DISMISS) {
+                                // Just dismiss bubble, do not stop timer
+                                params.x = lastx;
+                                params.y = lasty;
+                                params.setCanPlayMoveAnimation(true);
+                                windowManager.updateViewLayout(view, params);
+                                bubbleEventListener.onBubbleDismiss(timer.getTimer());
+                                Window.this.close();
+                                return true;
+                            }
                         }
 
                         // Handle button presses
@@ -677,23 +648,19 @@ public class Window {
      * @return true if the timer should be dismissed, false otherwise
      */
     private boolean shouldDismissTimer() {
-        float[] dismissPos = dismissCircle.getDismissCirclePosition();
-        float centerX = params.x + (view.getWidth() / 2);
-        float centerY = params.y + (view.getHeight() / 2);
-        float dismissDx = centerX - dismissPos[0];
-        float dismissDy = centerY - dismissPos[1];
-        float distance = (float) Math.sqrt(dismissDx * dismissDx + dismissDy * dismissDy);
-        boolean isCurrentlyPulled = distance < DISMISS_THRESHOLD_PIXELS;
-        
+        // This method is now only used for legacy fallback, but let's keep it for now
+        DismissCircleView.DismissCircle nearest = dismissCircle.getNearestDismissCircle(
+            params.x + (view.getWidth() / 2),
+            params.y + (view.getHeight() / 2)
+        );
+        boolean isCurrentlyPulled = (nearest != null && nearest.type == DismissCircleView.DismissType.STOP);
         Log.d("Window", "=== Dismiss Check Debug ===");
         Log.d("Window", "Timer position: [" + params.x + "," + params.y + "]");
-        Log.d("Window", "Timer center: [" + centerX + "," + centerY + "]");
-        Log.d("Window", "Dismiss circle: [" + dismissPos[0] + "," + dismissPos[1] + "]");
-        Log.d("Window", "Distance: " + distance);
+        Log.d("Window", "Timer center: [" + (params.x + (view.getWidth() / 2)) + "," + (params.y + (view.getHeight() / 2)) + "]");
+        Log.d("Window", "Dismiss circle: [" + (nearest != null ? nearest.centerX : "null") + "," + (nearest != null ? nearest.centerY : "null") + "]");
         Log.d("Window", "Is currently pulled: " + isCurrentlyPulled);
-        Log.d("Window", "Was pulled to dismiss: " + wasPulledToDismissCircle);
-        
-        return isCurrentlyPulled || wasPulledToDismissCircle;
+        Log.d("Window", "Was pulled to dismiss: " + (pulledToDismissCircle != null ? pulledToDismissCircle.type : "null"));
+        return isCurrentlyPulled || (pulledToDismissCircle != null && pulledToDismissCircle.type == DismissCircleView.DismissType.STOP);
     }
 
     /**

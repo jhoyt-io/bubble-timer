@@ -10,81 +10,111 @@ import android.view.View;
 
 import androidx.annotation.NonNull;
 
+import java.util.ArrayList;
+import java.util.List;
+import android.graphics.drawable.Drawable;
+
 public class DismissCircleView extends View {
     public static final float DISMISS_CIRCLE_RADIUS = 80.0f;
-    private static final float DISMISS_CIRCLE_BOTTOM_MARGIN = 200.0f;
     private static final float DISMISS_CIRCLE_PULL_THRESHOLD = 200.0f;
     private static final float DISMISS_CIRCLE_PULL_STRENGTH = 0.5f;
 
+    public enum DismissType { STOP, DISMISS }
+
+    public static class DismissCircle {
+        public float centerX;
+        public float centerY;
+        public Drawable icon;
+        public DismissType type;
+        public DismissCircle(float centerX, float centerY, Drawable icon, DismissType type) {
+            this.centerX = centerX;
+            this.centerY = centerY;
+            this.icon = icon;
+            this.type = type;
+        }
+    }
+
     private Paint circlePaint;
-    private Paint textPaint;
     private int screenWidth = 0;
     private int screenHeight = 0;
+    private List<DismissCircle> circles = new ArrayList<>();
 
     public DismissCircleView(Context context, AttributeSet attrs) {
         super(context, attrs);
-
         this.circlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         this.circlePaint.setColor(context.getResources().getColor(android.R.color.darker_gray, context.getTheme()));
         this.circlePaint.setStyle(Paint.Style.FILL);
         this.circlePaint.setAlpha(180);
-
-        this.textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        this.textPaint.setColor(Color.WHITE);
-        this.textPaint.setTextAlign(Paint.Align.CENTER);
-        this.textPaint.setTextSize(60.0f);
     }
 
     public void setScreenDimensions(int width, int height) {
         this.screenWidth = width;
         this.screenHeight = height;
+        setupDefaultCircles(getContext());
         invalidate();
+    }
+
+    private void setupDefaultCircles(Context context) {
+        circles.clear();
+        // Top circle (DISMISS)
+        Drawable xIcon = null;
+        Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textPaint.setColor(Color.WHITE);
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        textPaint.setTextSize(60.0f);
+        // We'll draw the X manually, so icon is null
+        circles.add(new DismissCircle(screenWidth / 2.0f, 200.0f + DISMISS_CIRCLE_RADIUS, null, DismissType.DISMISS));
+        // Bottom circle (STOP)
+        Drawable stopIcon = context.getResources().getDrawable(R.drawable.stop, context.getTheme());
+        circles.add(new DismissCircle(screenWidth / 2.0f, screenHeight - 200.0f - DISMISS_CIRCLE_RADIUS, stopIcon, DismissType.STOP));
     }
 
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
         super.onDraw(canvas);
-        
-        float centerX = screenWidth / 2.0f;
-        float centerY = screenHeight - DISMISS_CIRCLE_BOTTOM_MARGIN - DISMISS_CIRCLE_RADIUS;
-        Log.d("DismissCircleView", "onDraw: screenWidth=" + screenWidth + ", screenHeight=" + screenHeight + ", centerY=" + centerY);
-        
-        // Draw a background circle first
         Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         bgPaint.setColor(Color.WHITE);
         bgPaint.setStyle(Paint.Style.FILL);
-        canvas.drawCircle(centerX, centerY, DISMISS_CIRCLE_RADIUS + 4, bgPaint);
-        
-        // Draw the main circle
-        canvas.drawCircle(centerX, centerY, DISMISS_CIRCLE_RADIUS, circlePaint);
-        
-        // Draw the X symbol
-        canvas.drawText("×", centerX, centerY + textPaint.getTextSize()/3, textPaint);
-    }
-
-    public float[] getDismissCirclePosition() {
-        float centerX = screenWidth / 2.0f;
-        float centerY = screenHeight - DISMISS_CIRCLE_BOTTOM_MARGIN - DISMISS_CIRCLE_RADIUS;
-        return new float[]{centerX, centerY};
-    }
-
-    public boolean isNearDismissCircle(float x, float y) {
-        float[] dismissPos = getDismissCirclePosition();
-        float dx = x - dismissPos[0];
-        float dy = y - dismissPos[1];
-        float distance = (float) Math.sqrt(dx * dx + dy * dy);
-        return distance < DISMISS_CIRCLE_PULL_THRESHOLD;
-    }
-
-    public float[] getDismissCirclePullVector(float x, float y) {
-        float[] dismissPos = getDismissCirclePosition();
-        float dx = dismissPos[0] - x;
-        float dy = dismissPos[1] - y;
-        float distance = (float) Math.sqrt(dx * dx + dy * dy);
-        if (distance < DISMISS_CIRCLE_PULL_THRESHOLD) {
-            float pullStrength = (1.0f - (distance / DISMISS_CIRCLE_PULL_THRESHOLD)) * DISMISS_CIRCLE_PULL_STRENGTH;
-            return new float[]{dx * pullStrength, dy * pullStrength};
+        Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textPaint.setColor(Color.WHITE);
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        textPaint.setTextSize(60.0f);
+        for (DismissCircle circle : circles) {
+            // Draw background
+            canvas.drawCircle(circle.centerX, circle.centerY, DISMISS_CIRCLE_RADIUS + 4, bgPaint);
+            // Draw main circle
+            canvas.drawCircle(circle.centerX, circle.centerY, DISMISS_CIRCLE_RADIUS, circlePaint);
+            if (circle.type == DismissType.DISMISS) {
+                // Draw X manually
+                canvas.drawText("×", circle.centerX, circle.centerY + textPaint.getTextSize()/3, textPaint);
+            } else if (circle.type == DismissType.STOP && circle.icon != null) {
+                int iconSize = (int)(DISMISS_CIRCLE_RADIUS * 1.2f);
+                int left = (int)(circle.centerX - iconSize/2);
+                int top = (int)(circle.centerY - iconSize/2);
+                int right = (int)(circle.centerX + iconSize/2);
+                int bottom = (int)(circle.centerY + iconSize/2);
+                circle.icon.setBounds(left, top, right, bottom);
+                circle.icon.draw(canvas);
+            }
         }
-        return new float[]{0, 0};
+    }
+
+    public DismissCircle getNearestDismissCircle(float x, float y) {
+        DismissCircle nearest = null;
+        float minDist = Float.MAX_VALUE;
+        for (DismissCircle circle : circles) {
+            float dx = x - circle.centerX;
+            float dy = y - circle.centerY;
+            float dist = (float)Math.sqrt(dx*dx + dy*dy);
+            if (dist < DISMISS_CIRCLE_PULL_THRESHOLD && dist < minDist) {
+                minDist = dist;
+                nearest = circle;
+            }
+        }
+        return nearest;
+    }
+
+    public List<DismissCircle> getCircles() {
+        return circles;
     }
 } 
