@@ -56,12 +56,22 @@ public class MainActivity extends AppCompatActivity {
     private TimerViewModel timerViewModel;
     private TagViewModel tagViewModel;
     
+    private long lastAuthTokenRequest = 0;
+    private static final long AUTH_TOKEN_DEBOUNCE_MS = 5000; // 5 seconds
+
     private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String command = intent.getStringExtra("command");
 
             if (command.equals("sendAuthToken")) {
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastAuthTokenRequest < AUTH_TOKEN_DEBOUNCE_MS) {
+                    Log.i("MainActivity", "Ignoring sendAuthToken request - too soon since last request");
+                    return;
+                }
+                lastAuthTokenRequest = currentTime;
+                
                 Log.i("MainActivity", "sendAuthToken command received, fetching auth session...");
                 // Fetch auth token and send to the foreground service
                 Amplify.Auth.fetchAuthSession(authSession -> {
@@ -92,8 +102,11 @@ public class MainActivity extends AppCompatActivity {
                         Log.i("MainActivity", "Sending auth token to ForegroundService");
                         LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(message);
                         
-                        // Update the adapter with the new userId
-                        runOnUiThread(() -> setupTabsAndAdapterIfReady());
+                        // Only update the adapter if it hasn't been set up yet
+                        ViewPager2 viewPager = findViewById(R.id.timerPager);
+                        if (viewPager.getAdapter() == null) {
+                            runOnUiThread(() -> setupTabsAndAdapterIfReady());
+                        }
                     }, error -> {
                         Log.e("MainActivity", "Error getting current user", error);
                         Log.e("MainActivity", "Error details: " + error.getCause());

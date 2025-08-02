@@ -1,0 +1,276 @@
+// Test Configuration for Bubble Timer
+// This file contains test configurations for different test categories
+
+android {
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            
+            // Configure test execution
+            all {
+                // Set timeout for tests
+                timeout = Duration.ofMinutes(5)
+                
+                // Configure test logging
+                testLogging {
+                    events "passed", "skipped", "failed", "standardOut", "standardError"
+                    showExceptions true
+                    showCauses true
+                    showStackTraces true
+                    
+                    // Show summary
+                    exceptionFormat = 'full'
+                    displayGranularity = 2
+                }
+            }
+        }
+    }
+}
+
+// Test task configurations
+tasks.withType(Test) {
+    // Set JVM options for tests
+    jvmArgs '-Xmx2g', '-XX:MaxMetaspaceSize=512m'
+    
+    // Configure test execution
+    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+    
+    // Set system properties for tests
+    systemProperty 'junit.jupiter.execution.parallel.enabled', 'true'
+    systemProperty 'junit.jupiter.execution.parallel.mode.default', 'concurrent'
+    
+    // Configure test filtering
+    filter {
+        // Include all tests by default
+        includeTestsMatching "*Test"
+        includeTestsMatching "*Tests"
+    }
+}
+
+// Unit test task
+task unitTests(type: Test) {
+    description = 'Run unit tests only'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.core.*"
+        includeTestsMatching "io.jhoyt.bubbletimer.util.*"
+        includeTestsMatching "io.jhoyt.bubbletimer.websocket.WebsocketManagerOnDemandTest"
+        includeTestsMatching "io.jhoyt.bubbletimer.websocket.WebsocketManagerMessageTest"
+        includeTestsMatching "io.jhoyt.bubbletimer.service.ForegroundServiceTest"
+        includeTestsMatching "io.jhoyt.bubbletimer.sharing.SharedTimerPersistenceTest"
+        includeTestsMatching "io.jhoyt.bubbletimer.repository.ActiveTimerRepositoryTest"
+        includeTestsMatching "io.jhoyt.bubbletimer.websocket.WebsocketManagerConnectionTest"
+        includeTestsMatching "io.jhoyt.bubbletimer.util.TestDataFactoryTest"
+        includeTestsMatching "io.jhoyt.bubbletimer.di.DependencyInjectionTest"
+    }
+}
+
+// Integration test task
+task integrationTests(type: Test) {
+    description = 'Run integration tests only'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.integration.*"
+    }
+}
+
+// Fast test task (core functionality only)
+task fastTests(type: Test) {
+    description = 'Run fast tests only (core functionality)'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.core.TimerModelTest"
+        includeTestsMatching "io.jhoyt.bubbletimer.util.TestDataFactoryTest"
+        includeTestsMatching "io.jhoyt.bubbletimer.di.DependencyInjectionTest"
+    }
+}
+
+// WebSocket test task
+task websocketTests(type: Test) {
+    description = 'Run WebSocket tests only'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.websocket.*"
+    }
+}
+
+// Service test task
+task serviceTests(type: Test) {
+    description = 'Run service tests only'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.service.*"
+    }
+}
+
+// Database test task
+task databaseTests(type: Test) {
+    description = 'Run database tests only'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.repository.*"
+        includeTestsMatching "io.jhoyt.bubbletimer.integration.DatabaseIntegrationTest"
+    }
+}
+
+// Coverage test task
+task coverageTests(type: Test) {
+    description = 'Run tests with coverage'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.*"
+    }
+    
+    // Enable coverage
+    reports {
+        html.required = true
+        junitXml.required = true
+    }
+}
+
+// Performance test task
+task performanceTests(type: Test) {
+    description = 'Run performance tests'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.performance.*"
+    }
+    
+    // Set performance test options
+    maxHeapSize = "4g"
+    jvmArgs '-XX:+UseG1GC', '-XX:MaxGCPauseMillis=200'
+}
+
+// Stress test task
+task stressTests(type: Test) {
+    description = 'Run stress tests'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.performance.ConnectionStressTest"
+    }
+    
+    // Set stress test options
+    maxHeapSize = "4g"
+    jvmArgs '-XX:+UseG1GC', '-XX:MaxGCPauseMillis=200'
+}
+
+// Memory leak test task
+task memoryLeakTests(type: Test) {
+    description = 'Run memory leak tests'
+    group = 'verification'
+    
+    useJUnitPlatform()
+    
+    filter {
+        includeTestsMatching "io.jhoyt.bubbletimer.performance.MemoryLeakTest"
+    }
+    
+    // Set memory leak test options
+    maxHeapSize = "4g"
+    jvmArgs '-XX:+UseG1GC', '-XX:MaxGCPauseMillis=200'
+}
+
+// Test execution time measurement
+task measureTestTime {
+    description = 'Measure test execution time'
+    group = 'verification'
+    
+    doLast {
+        def startTime = System.currentTimeMillis()
+        
+        // Run all tests
+        tasks.test.execute()
+        
+        def endTime = System.currentTimeMillis()
+        def duration = (endTime - startTime) / 1000.0
+        
+        println "Test execution time: ${duration} seconds"
+        
+        // Check if tests completed within target time
+        if (duration > 120) { // 2 minutes target
+            throw new GradleException("Tests took too long: ${duration} seconds (target: 120 seconds)")
+        }
+    }
+}
+
+// Test categories documentation
+task testCategories {
+    description = 'Show available test categories'
+    group = 'help'
+    
+    doLast {
+        println """
+Bubble Timer Test Categories:
+============================
+
+Unit Tests (Fast - <30 seconds):
+- core.* - Timer model and core functionality tests
+- util.* - Utility and helper function tests
+- websocket.WebsocketManagerOnDemandTest - On-demand connection tests
+- websocket.WebsocketManagerMessageTest - Message handling tests
+- service.ForegroundServiceTest - Service integration tests
+- sharing.SharedTimerPersistenceTest - Timer sharing tests
+- repository.ActiveTimerRepositoryTest - Repository tests
+- di.DependencyInjectionTest - DI configuration tests
+
+Integration Tests (Medium - <2 minutes):
+- integration.* - Database and integration tests
+
+Performance Tests (Slow - >2 minutes):
+- performance.ConnectionStressTest - Connection stress and concurrent operation tests
+- performance.MemoryLeakTest - Memory leak detection and resource cleanup tests
+- performance.PerformanceTestSuite - Comprehensive performance benchmarking tests
+
+All Tests:
+- Complete test suite with all categories
+
+Usage:
+------
+./gradlew unitTests          # Run unit tests only
+./gradlew integrationTests   # Run integration tests only
+./gradlew fastTests          # Run fast tests only
+./gradlew websocketTests     # Run WebSocket tests only
+./gradlew serviceTests       # Run service tests only
+./gradlew databaseTests      # Run database tests only
+./gradlew coverageTests      # Run tests with coverage
+./gradlew performanceTests   # Run performance tests
+./gradlew stressTests        # Run stress tests only
+./gradlew memoryLeakTests    # Run memory leak tests only
+./gradlew measureTestTime    # Measure test execution time
+./gradlew test               # Run all tests
+
+Or use the script:
+./scripts/run-tests.sh unit
+./scripts/run-tests.sh integration
+./scripts/run-tests.sh all
+./scripts/run-tests.sh coverage
+"""
+    }
+} 

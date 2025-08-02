@@ -15,5 +15,8 @@
       "require_numbers": true,
       "require_symbols": true
     }
+  },
+  "websocket": {
+    "endpoint": "wss://zc4ahryh1l.execute-api.us-east-1.amazonaws.com/prod/"
   }
 }

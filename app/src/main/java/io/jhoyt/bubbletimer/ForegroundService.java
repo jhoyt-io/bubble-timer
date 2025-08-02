@@ -26,6 +26,8 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListUpdateCallback;
 
+import dagger.hilt.android.AndroidEntryPoint;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,7 +35,9 @@ import java.util.List;
 import java.util.Map;
 
 import io.jhoyt.bubbletimer.db.ActiveTimerRepository;
+import javax.inject.Inject;
 
+@AndroidEntryPoint
 public class ForegroundService extends LifecycleService implements Window.BubbleEventListener {
     public static final int NOTIFICATION_ID = 2;
     public static String MESSAGE_RECEIVER_ACTION = "foreground-service-message-receiver";
@@ -51,9 +55,11 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
     private final Handler timerHandler;
     private Runnable updater;
 
-    private WebsocketManager websocketManager;
+    @Inject
+    WebsocketManager websocketManager;
 
-    private ActiveTimerRepository activeTimerRepository;
+    @Inject
+    ActiveTimerRepository activeTimerRepository;
     private List<Timer> activeTimers;
     private Map<String, Window> windowsByTimerId;
 
@@ -61,6 +67,8 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
     private Boolean isOverlayShown = false;
     private boolean isDebugModeEnabled = false;  // Track if debug mode is enabled
+    private long lastAuthTokenRequest = 0;
+    private static final long AUTH_TOKEN_DEBOUNCE_MS = 5000; // 5 seconds
 
     private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -155,79 +163,83 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
     public void onCreate() {
         super.onCreate();
 
-        this.activeTimerRepository = new ActiveTimerRepository(getApplication());
-        this.websocketManager = new WebsocketManager(
-                new WebsocketManager.WebsocketMessageListener() {
-                    @Override
-                    public void onFailure(String reason) {
-                        Log.i("ForegroundService", "Websocket failure: " + reason);
+        // Set up WebSocket message listener
+        websocketManager.setMessageListener(new WebsocketManager.WebsocketMessageListener() {
+            @Override
+            public void onFailure(String reason) {
+                Log.i("ForegroundService", "Websocket failure: " + reason);
 
-                        Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
-                        message.putExtra("command", "sendAuthToken");
-                        LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
-                    }
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastAuthTokenRequest < AUTH_TOKEN_DEBOUNCE_MS) {
+                    Log.i("ForegroundService", "Ignoring WebSocket failure - too soon since last auth token request");
+                    return;
+                }
+                lastAuthTokenRequest = currentTime;
 
-                    @Override
-                    public void onConnectionStateChanged(WebsocketManager.ConnectionState newState) {
-                        Log.i("ForegroundService", "Websocket state changed to: " + newState);
-                        
-                        // Update notification based on connection state
-                        String statusText;
-                        switch (newState) {
-                            case CONNECTED:
-                                statusText = "Connected";
-                                break;
-                            case CONNECTING:
-                                statusText = "Connecting...";
-                                break;
-                            case RECONNECTING:
-                                statusText = "Reconnecting...";
-                                break;
-                            case DISCONNECTED:
-                                statusText = "Disconnected";
-                                break;
-                            default:
-                                statusText = "Unknown state";
-                        }
-                        
-                        notificationBuilder.setContentText(statusText);
-                        notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
-                    }
+                Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
+                message.putExtra("command", "sendAuthToken");
+                LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
+            }
 
-                    @Override
-                    public void onTimerReceived(Timer timer) {
-                        if (timer == null) {
-                            // This is a signal to clean up UI state
-                            // Create a copy of the entries to avoid ConcurrentModificationException
-                            new HashMap<>(windowsByTimerId).forEach((timerId, window) -> {
-                                window.close();
-                                windowsByTimerId.remove(timerId);
-                            });
-                            return;
-                        }
-                        
-                        Log.i("ForegroundService", "Received timer update from WebSocket: " + timer.getId());
-                        
-                        // Update the UI for this timer if it's currently displayed
-                        if (windowsByTimerId.containsKey(timer.getId())) {
-                            Window window = windowsByTimerId.get(timer.getId());
-                            if (window.isOpen()) {
-                                // Update the timer in the window
-                                window.getTimerView().setTimer(timer);
-                                window.invalidate();
-                            }
-                        }
-                        
-                        // If this is a new timer and overlay is shown, create a new window for it
-                        if (!windowsByTimerId.containsKey(timer.getId()) && isOverlayShown) {
-                            Window window = new Window(getApplicationContext(), false, currentUserId);
-                            window.open(timer, ForegroundService.this);
-                            windowsByTimerId.put(timer.getId(), window);
-                        }
+            @Override
+            public void onConnectionStateChanged(WebsocketManager.ConnectionState newState) {
+                Log.i("ForegroundService", "Websocket state changed to: " + newState);
+                
+                // Update notification based on connection state
+                String statusText;
+                switch (newState) {
+                    case CONNECTED:
+                        statusText = "Connected";
+                        break;
+                    case CONNECTING:
+                        statusText = "Connecting...";
+                        break;
+                    case RECONNECTING:
+                        statusText = "Reconnecting...";
+                        break;
+                    case DISCONNECTED:
+                        statusText = "Disconnected";
+                        break;
+                    default:
+                        statusText = "Unknown state";
+                }
+                
+                notificationBuilder.setContentText(statusText);
+                notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
+            }
+
+            @Override
+            public void onTimerReceived(Timer timer) {
+                if (timer == null) {
+                    // This is a signal to clean up UI state
+                    // Create a copy of the entries to avoid ConcurrentModificationException
+                    new HashMap<>(windowsByTimerId).forEach((timerId, window) -> {
+                        window.close();
+                        windowsByTimerId.remove(timerId);
+                    });
+                    return;
+                }
+                
+                Log.i("ForegroundService", "Received timer update from WebSocket: " + timer.getId());
+                
+                // Update the UI for this timer if it's currently displayed
+                if (windowsByTimerId.containsKey(timer.getId())) {
+                    Window window = windowsByTimerId.get(timer.getId());
+                    if (window.isOpen()) {
+                        // Update the timer in the window
+                        window.getTimerView().setTimer(timer);
+                        window.invalidate();
                     }
-                },
-                activeTimerRepository
-        );
+                }
+                
+                // If this is a new timer and overlay is shown, create a new window for it
+                if (!windowsByTimerId.containsKey(timer.getId()) && isOverlayShown) {
+                    Window window = new Window(getApplicationContext(), false, currentUserId);
+                    window.open(timer, ForegroundService.this);
+                    windowsByTimerId.put(timer.getId(), window);
+                }
+            }
+        });
 
         this.activeTimers = new ArrayList<>();
         this.windowsByTimerId = new HashMap<>();

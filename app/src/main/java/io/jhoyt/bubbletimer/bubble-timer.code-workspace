@@ -7,5 +7,7 @@
 			"path": "../../../../../../../../../Projects/bubble-timer-backend"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"java.configuration.updateBuildConfiguration": "interactive"
+	}
 }

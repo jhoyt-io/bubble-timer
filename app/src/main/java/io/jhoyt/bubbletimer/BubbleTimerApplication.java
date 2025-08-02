@@ -9,17 +9,21 @@ import com.amplifyframework.auth.cognito.AWSCognitoAuthPlugin;
 import com.amplifyframework.core.Amplify;
 import com.amplifyframework.core.configuration.AmplifyOutputs;
 
-public class AmplifyApp extends Application {
+import dagger.hilt.android.HiltAndroidApp;
+
+@HiltAndroidApp
+public class BubbleTimerApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
 
+        // Configure Amplify plugins
         try {
             Amplify.addPlugin(new AWSCognitoAuthPlugin());
             Amplify.configure(AmplifyOutputs.fromResource(R.raw.amplify_outputs), getApplicationContext());
-            Log.i("AmplifyApp", "Initialized Amplify");
+            Log.i("BubbleTimerApplication", "Initialized Amplify");
         } catch (AmplifyException e) {
-            Log.e("AmplifyApp", "Could not initialize Amplify", e);
+            Log.e("BubbleTimerApplication", "Could not initialize Amplify", e);
         }
     }
-}
+} 

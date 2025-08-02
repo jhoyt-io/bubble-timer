@@ -7,6 +7,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LifecycleOwner;
 
+import com.amplifyframework.core.configuration.AmplifyOutputs;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -35,7 +37,7 @@ import okhttp3.WebSocketListener;
 
 public class WebsocketManager {
     private static final String TAG = "WebsocketManager";
-    private static final int MAX_RECONNECT_ATTEMPTS = Integer.MAX_VALUE; // Never stop trying to reconnect
+    private static final int MAX_RECONNECT_ATTEMPTS = 10; // Limit reconnection attempts
     private static final long RECONNECT_DELAY_MS = 5000; // 5 seconds
     private static final long PING_INTERVAL_MS = 15000; // Send ping every 15 seconds
     private static final long PONG_TIMEOUT_MS = 5000; // Wait 5 seconds for pong response
@@ -43,7 +45,7 @@ public class WebsocketManager {
     private static final long QUEUE_CHECK_INTERVAL_MS = 5000; // Check queue every 5 seconds
 
     private final OkHttpClient okHttpClient;
-    private final WebsocketMessageListener messageListener;
+    private WebsocketMessageListener messageListener;
     private WebSocket webSocket;
     private final AtomicBoolean isConnecting = new AtomicBoolean(false);
     private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
@@ -51,6 +53,7 @@ public class WebsocketManager {
     private String deviceId;
     private String cognitoUserName;
     private final ActiveTimerRepository activeTimerRepository;
+    private String websocketEndpoint;
     private Handler queueCheckHandler;
     private Handler pingHandler;
     private Handler reconnectHandler;
@@ -75,14 +78,15 @@ public class WebsocketManager {
         void onTimerReceived(Timer timer);
     }
 
-    public WebsocketManager(
-            WebsocketMessageListener messageListener,
-            ActiveTimerRepository activeTimerRepository
-    ) {
-        this.okHttpClient = new OkHttpClient.Builder()
-                .retryOnConnectionFailure(true)
-                .build();
+    public void setMessageListener(WebsocketMessageListener messageListener) {
         this.messageListener = messageListener;
+    }
+
+    public WebsocketManager(
+            ActiveTimerRepository activeTimerRepository,
+            OkHttpClient okHttpClient
+    ) {
+        this.okHttpClient = okHttpClient;
         this.webSocket = null;
         this.activeTimerRepository = activeTimerRepository;
         
@@ -194,6 +198,27 @@ public class WebsocketManager {
         this.activeTimerRepository.deleteById(timerId);
     }
 
+    private void loadWebsocketEndpoint() {
+        try {
+            // Try to load from Amplify configuration
+            String configJson = AmplifyOutputs.fromResource(R.raw.amplify_outputs).toString();
+            JSONObject config = new JSONObject(configJson);
+            
+            if (config.has("websocket") && config.getJSONObject("websocket").has("endpoint")) {
+                this.websocketEndpoint = config.getJSONObject("websocket").getString("endpoint");
+                Log.i(TAG, "Loaded WebSocket endpoint from config: " + websocketEndpoint);
+            } else {
+                // Fallback to hardcoded URL
+                this.websocketEndpoint = "wss://zc4ahryh1l.execute-api.us-east-1.amazonaws.com/prod/";
+                Log.w(TAG, "WebSocket endpoint not found in config, using fallback: " + websocketEndpoint);
+            }
+        } catch (Exception e) {
+            // Fallback to hardcoded URL
+            this.websocketEndpoint = "wss://zc4ahryh1l.execute-api.us-east-1.amazonaws.com/prod/";
+            Log.e(TAG, "Failed to load WebSocket endpoint from config, using fallback: " + websocketEndpoint, e);
+        }
+    }
+
     public void initialize(String authToken, String deviceId, String cognitoUserName) {
         Log.i(TAG, "Initializing WebSocket with:");
         Log.i(TAG, "  authToken: " + (authToken != null ? authToken.substring(0, Math.min(20, authToken.length())) + "..." : "null"));
@@ -226,6 +251,42 @@ public class WebsocketManager {
         this.authToken = authToken;
         this.deviceId = deviceId;
         this.cognitoUserName = cognitoUserName;
+        
+        // Load WebSocket endpoint from configuration
+        loadWebsocketEndpoint();
+        
+        // Note: No automatic connection on initialization for on-demand behavior
+        Log.i(TAG, "WebSocket initialized but not connected (on-demand mode)");
+    }
+
+    /**
+     * Connect to WebSocket if not already connected or connecting.
+     * This implements the on-demand connection behavior.
+     */
+    public void connectIfNeeded() {
+        Log.i(TAG, "connectIfNeeded() called");
+        Log.i(TAG, "  Current state: " + currentState);
+        Log.i(TAG, "  Is connecting: " + isConnecting.get());
+        
+        if (currentState == ConnectionState.CONNECTED) {
+            Log.i(TAG, "Already connected, no action needed");
+            return;
+        }
+        
+        if (isConnecting.get()) {
+            Log.i(TAG, "Already connecting, no action needed");
+            return;
+        }
+        
+        if (authToken == null || authToken.isEmpty()) {
+            Log.e(TAG, "Cannot connect: authToken is null or empty");
+            if (messageListener != null) {
+                messageListener.onFailure("Auth token is null or empty");
+            }
+            return;
+        }
+        
+        Log.i(TAG, "Connecting on-demand...");
         connect();
     }
 
@@ -245,13 +306,13 @@ public class WebsocketManager {
         Log.i(TAG, "Building WebSocket request with:");
         Log.i(TAG, "  Authorization header: " + (authToken != null ? "present" : "null"));
         Log.i(TAG, "  DeviceId header: " + deviceId);
-        Log.i(TAG, "  URL: wss://zc4ahryh1l.execute-api.us-east-1.amazonaws.com/prod/");
+        Log.i(TAG, "  URL: " + websocketEndpoint);
 
         Request webSocketRequest = new Request.Builder()
                 .header("Authorization", authToken)
                 .header("DeviceId", deviceId)
                 .header("User-Agent", "BubbleTimer-Android/1.0")
-                .url("wss://zc4ahryh1l.execute-api.us-east-1.amazonaws.com/prod/")
+                .url(websocketEndpoint)
                 .build();
 
         WebSocketListener webSocketListener = new WebSocketListener() {
@@ -368,6 +429,8 @@ public class WebsocketManager {
                             messageListener.onTimerReceived(null);
                             return;
 
+
+
                         default:
                             Log.e(TAG, "Unsupported message type: " + type);
                     }
@@ -476,6 +539,8 @@ public class WebsocketManager {
         sendMessage(webSocketRequestString);
     }
 
+
+
     private void sendMessage(String message) {
         if (message == null) {
             Log.e(TAG, "Cannot send null message");
@@ -535,4 +600,6 @@ public class WebsocketManager {
             Log.e(TAG, "Cannot force reconnect: missing credentials");
         }
     }
+    
+
 }
