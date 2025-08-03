@@ -51,4 +51,16 @@ public class WebsocketManagerConnectionTest {
         WebsocketManager manager = new WebsocketManager(mockRepository, null);
         assertNotNull("WebsocketManager should be created even with null client", manager);
     }
+
+    @Test
+    public void testInitialConnectionState() {
+        // Test that the initial connection state is DISCONNECTED
+        ActiveTimerRepository mockRepository = null;
+        OkHttpClient mockClient = new OkHttpClient();
+        WebsocketManager manager = new WebsocketManager(mockRepository, mockClient);
+        
+        assertEquals("Initial connection state should be DISCONNECTED", 
+            WebsocketManager.ConnectionState.DISCONNECTED, 
+            manager.getConnectionState());
+    }
 } 

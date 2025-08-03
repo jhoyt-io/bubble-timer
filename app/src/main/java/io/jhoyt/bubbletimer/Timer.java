@@ -149,13 +149,24 @@ public class Timer {
     }
 
     public void setSharedWith(Set<String> sharedWith) {
-        this.sharedWith = Collections.unmodifiableSet(sharedWith);
+        // Filter out empty strings and null values
+        Set<String> filteredSharedWith = sharedWith.stream()
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.toSet());
+        
+        this.sharedWith = Collections.unmodifiableSet(filteredSharedWith);
     }
 
     public void shareWith(String userName) {
+        // Don't add empty strings or null values
+        if (userName == null || userName.trim().isEmpty()) {
+            return;
+        }
+        
         Set<String> shareWith = new HashSet<>();
         shareWith.addAll(this.sharedWith);
-        shareWith.add(userName);
+        shareWith.add(userName.trim());
 
         this.sharedWith = Collections.unmodifiableSet(shareWith);
     }

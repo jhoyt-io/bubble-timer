@@ -17,9 +17,11 @@ public class TimerConverter {
                 activeTimer.tagsString == null ?
                         Set.of()
                         : Set.of(activeTimer.tagsString.split("#~#"))
-        ), activeTimer.sharedWithString == null ?
+        ), activeTimer.sharedWithString == null || activeTimer.sharedWithString.isEmpty() ?
                 Set.of()
-                : Set.of(activeTimer.sharedWithString.split("#~#")));
+                : Set.of(activeTimer.sharedWithString.split("#~#")).stream()
+                        .filter(s -> !s.isEmpty())
+                        .collect(java.util.stream.Collectors.toSet()));
     }
 
     public static ActiveTimer toActiveTimer(Timer timer) {
@@ -32,7 +34,10 @@ public class TimerConverter {
         activeTimer.totalDuration = timerData.totalDuration;
         activeTimer.remainingDurationWhenPaused = timerData.remainingDurationWhenPaused;
         activeTimer.timerEnd = timerData.timerEnd;
-        activeTimer.sharedWithString = String.join("#~#", timer.getSharedWith());
+        Set<String> sharedWith = timer.getSharedWith();
+        // Set to empty string when no shared users exist
+        // This maintains compatibility with the database schema
+        activeTimer.sharedWithString = sharedWith.isEmpty() ? "" : String.join("#~#", sharedWith);
         activeTimer.tagsString = String.join("#~#", timer.getTags());
 
         return activeTimer;

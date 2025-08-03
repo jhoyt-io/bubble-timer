@@ -31,8 +31,10 @@ import dagger.hilt.android.AndroidEntryPoint;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import io.jhoyt.bubbletimer.db.ActiveTimerRepository;
 import javax.inject.Inject;
@@ -65,6 +67,11 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
     private Window expandedWindow;
 
+    // Simplified shared timer tracking - integrated directly into ForegroundService
+    private final Set<String> sharedTimerIds = new HashSet<>();
+    private final Set<String> pendingInvitationIds = new HashSet<>();
+    private final Set<String> activeSharedTimerIds = new HashSet<>();
+
     private Boolean isOverlayShown = false;
     private boolean isDebugModeEnabled = false;  // Track if debug mode is enabled
     private long lastAuthTokenRequest = 0;
@@ -76,8 +83,10 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
             Log.d("ForegroundService", "onReceive called");
 
             String command = intent.getStringExtra("command");
+            Log.i("ForegroundService", "Broadcast received with command: " + command);
 
             if (command == null) {
+                Log.w("ForegroundService", "Broadcast received with null command");
                 return;
             }
 
@@ -134,6 +143,9 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
                 Log.i("ForegroundService", "Initializing WebSocket with received credentials");
                 websocketManager.initialize(authToken, androidId, currentUserId);
+                
+                // Check if we need to connect based on current shared timers
+                checkWebsocketConnectionNeeds();
             } else if (command.equals("toggleDebugMode")) {
                 isDebugModeEnabled = !isDebugModeEnabled;
                 // Update debug mode for all windows
@@ -245,6 +257,12 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         this.windowsByTimerId = new HashMap<>();
 
         this.activeTimerRepository.getAllActiveTimers().observe(this, timers -> {
+            Log.d("ForegroundService", "Repository observer triggered with " + (timers != null ? timers.size() : 0) + " timers");
+            Log.i("ForegroundService", "Repository observer - timers: " + (timers != null ? timers.stream().map(t -> t.getId() + ":" + t.getSharedWith()).collect(java.util.stream.Collectors.joining(", ")) : "null"));
+            
+            // Update shared timer tracking
+            updateSharedTimerTracking(timers);
+            
             DiffUtil.calculateDiff(
                     new DiffUtil.Callback() {
                         @Override
@@ -364,9 +382,14 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
             }
             
             // Check WebSocket connection status and attempt reconnection if needed
+            // Only reconnect if there are shared timers (on-demand mode)
             if (websocketManager != null && websocketManager.getConnectionState() == WebsocketManager.ConnectionState.DISCONNECTED) {
-                Log.i("ForegroundService", "WebSocket is disconnected, attempting to reconnect");
-                websocketManager.forceReconnect();
+                if (!sharedTimerIds.isEmpty()) {
+                    Log.i("ForegroundService", "WebSocket is disconnected but shared timers exist, attempting to reconnect");
+                    websocketManager.forceReconnect();
+                } else {
+                    Log.d("ForegroundService", "WebSocket is disconnected but no shared timers - staying disconnected (on-demand mode)");
+                }
             }
 
             boolean shouldAlarm = false;
@@ -415,6 +438,96 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         LocalBroadcastManager.getInstance(ForegroundService.this).sendBroadcast(message);
     }
 
+    /**
+     * Update shared timer tracking based on current timers.
+     * This replaces the SharedTimerManager functionality with a simpler approach.
+     */
+    private void updateSharedTimerTracking(List<Timer> timers) {
+        Log.i("ForegroundService", "updateSharedTimerTracking called with " + (timers != null ? timers.size() : 0) + " timers");
+        
+        Set<String> newSharedTimerIds = new HashSet<>();
+        Set<String> newPendingInvitationIds = new HashSet<>();
+        Set<String> newActiveSharedTimerIds = new HashSet<>();
+        
+        if (timers != null) {
+            for (Timer timer : timers) {
+                Set<String> sharedWith = timer.getSharedWith();
+                Log.d("ForegroundService", "Checking timer " + timer.getId() + " - sharedWith: " + 
+                      (sharedWith != null ? sharedWith.size() : "null") + 
+                      " - sharedWith contents: " + (sharedWith != null ? sharedWith.toString() : "null"));
+                
+                // A timer is considered "shared" if it has non-empty sharedWith set
+                // This means either:
+                // 1. The current user shared this timer with other users
+                // 2. Another user shared this timer with the current user
+                if (sharedWith != null && !sharedWith.isEmpty()) {
+                    newSharedTimerIds.add(timer.getId());
+                    Log.i("ForegroundService", "Found shared timer: " + timer.getId() + " with users: " + sharedWith);
+                    
+                    // For now, consider all shared timers as active
+                    // In a real implementation, you might track pending vs active more precisely
+                    if (activeSharedTimerIds.contains(timer.getId())) {
+                        newActiveSharedTimerIds.add(timer.getId());
+                    } else {
+                        newPendingInvitationIds.add(timer.getId());
+                    }
+                } else {
+                    Log.d("ForegroundService", "Timer " + timer.getId() + " is not shared (sharedWith is null or empty)");
+                }
+            }
+        }
+        
+        Log.i("ForegroundService", "Found " + newSharedTimerIds.size() + " shared timers out of " + (timers != null ? timers.size() : 0) + " total timers");
+        
+        // Update state
+        sharedTimerIds.clear();
+        sharedTimerIds.addAll(newSharedTimerIds);
+        
+        pendingInvitationIds.clear();
+        pendingInvitationIds.addAll(newPendingInvitationIds);
+        
+        activeSharedTimerIds.clear();
+        activeSharedTimerIds.addAll(newActiveSharedTimerIds);
+        
+        Log.i("ForegroundService", "Updated shared timer state: " + newSharedTimerIds.size() + " shared timers");
+        Log.i("ForegroundService", "Shared timer IDs: " + newSharedTimerIds);
+        Log.i("ForegroundService", "Pending invitations: " + newPendingInvitationIds);
+        Log.i("ForegroundService", "Active shared timers: " + newActiveSharedTimerIds);
+        
+        // Check connection needs after state update
+        checkWebsocketConnectionNeeds();
+    }
+    
+    /**
+     * Check if we need to establish or terminate WebSocket connection based on shared timers.
+     * Only connect when there are active shared timers (timers with non-empty sharedWith sets).
+     */
+    private void checkWebsocketConnectionNeeds() {
+        boolean hasSharedTimers = !sharedTimerIds.isEmpty();
+        WebsocketManager.ConnectionState currentState = websocketManager.getConnectionState();
+        
+        Log.i("ForegroundService", "checkWebsocketConnectionNeeds - hasSharedTimers: " + hasSharedTimers + 
+              ", current WebSocket state: " + currentState +
+              ", sharedTimerIds.size(): " + sharedTimerIds.size() +
+              ", sharedTimerIds: " + sharedTimerIds);
+        
+        if (hasSharedTimers) {
+            if (currentState == WebsocketManager.ConnectionState.DISCONNECTED) {
+                Log.i("ForegroundService", "Shared timers detected, connecting to WebSocket");
+                websocketManager.connectIfNeeded();
+            } else {
+                Log.d("ForegroundService", "Shared timers detected but WebSocket already connected");
+            }
+        } else {
+            if (currentState == WebsocketManager.ConnectionState.CONNECTED) {
+                Log.i("ForegroundService", "No shared timers, disconnecting from WebSocket");
+                websocketManager.close();
+            } else {
+                Log.d("ForegroundService", "No shared timers and WebSocket already disconnected");
+            }
+        }
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
@@ -431,6 +544,9 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
     @Override
     public void onTimerUpdated(Timer timer) {
+        Log.i("ForegroundService", "onTimerUpdated called for timer: " + timer.getId() + 
+              " - sharedWith: " + (timer.getSharedWith() != null ? timer.getSharedWith().toString() : "null"));
+        
         if (timer.getUserId() == null) {
             Log.i("ForegroundService", "userId from view is null");
         } else {
@@ -445,6 +561,8 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         } else {
             Log.i("ForegroundService", "userId from repo is NOT null: " + timerFromRepository.getUserId());
         }
+        Log.i("ForegroundService", "Timer from repository - sharedWith: " + 
+              (timerFromRepository.getSharedWith() != null ? timerFromRepository.getSharedWith().toString() : "null"));
         this.websocketManager.sendUpdateTimerToWebsocket(timerFromRepository, "who knows");
     }
 
@@ -497,5 +615,10 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver);
 
         websocketManager.close();
+        
+        // Clean up shared timer tracking
+        sharedTimerIds.clear();
+        pendingInvitationIds.clear();
+        activeSharedTimerIds.clear();
     }
 }

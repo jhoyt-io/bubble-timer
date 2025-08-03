@@ -63,22 +63,22 @@ public class SharedTimerPersistenceTest {
 
     @Test
     public void testTimerSharingWithEmptyUser() {
-        // Test sharing timer with empty username
+        // Test sharing timer with empty username - should be filtered out
         testTimer.shareWith("");
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 1 shared user", 1, sharedWith.size());
-        assertTrue("Should contain empty string", sharedWith.contains(""));
+        assertEquals("Should have 0 shared users (empty string filtered out)", 0, sharedWith.size());
+        assertFalse("Should not contain empty string", sharedWith.contains(""));
     }
 
     @Test
     public void testTimerSharingWithNullUser() {
-        // Test sharing timer with null username
+        // Test sharing timer with null username - should be filtered out
         testTimer.shareWith(null);
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 1 shared user", 1, sharedWith.size());
-        assertTrue("Should contain null", sharedWith.contains(null));
+        assertEquals("Should have 0 shared users (null filtered out)", 0, sharedWith.size());
+        assertFalse("Should not contain null", sharedWith.contains(null));
     }
 
     @Test

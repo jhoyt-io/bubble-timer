@@ -22,6 +22,11 @@ android {
                     exceptionFormat = 'full'
                     displayGranularity = 2
                 }
+                
+                // Configure Android mocking
+                systemProperty 'android.util.Log', 'mock'
+                systemProperty 'android.os.Looper', 'mock'
+                systemProperty 'androidx.arch.core.executor.DefaultTaskExecutor', 'mock'
             }
         }
     }

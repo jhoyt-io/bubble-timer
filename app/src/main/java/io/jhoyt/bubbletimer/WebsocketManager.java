@@ -62,6 +62,12 @@ public class WebsocketManager {
     private long lastSuccessfulMessageTime = 0;
     private long lastPongTime = 0;
     private boolean hasReceivedPong = false;
+    
+    // Connection tracking for debugging
+    private long lastConnectionSuccessTime = 0;
+    private int totalConnectionAttempts = 0;
+    private int successfulConnections = 0;
+    private static final long CONNECTION_STABILITY_THRESHOLD = 30000; // 30 seconds
 
     public enum ConnectionState {
         DISCONNECTED,
@@ -81,6 +87,8 @@ public class WebsocketManager {
     public void setMessageListener(WebsocketMessageListener messageListener) {
         this.messageListener = messageListener;
     }
+    
+
 
     public WebsocketManager(
             ActiveTimerRepository activeTimerRepository,
@@ -199,14 +207,17 @@ public class WebsocketManager {
     }
 
     private void loadWebsocketEndpoint() {
+        Log.i(TAG, "Loading WebSocket endpoint from configuration...");
         try {
             // Try to load from Amplify configuration
             String configJson = AmplifyOutputs.fromResource(R.raw.amplify_outputs).toString();
+            Log.d(TAG, "Raw config JSON: " + configJson);
+            
             JSONObject config = new JSONObject(configJson);
             
             if (config.has("websocket") && config.getJSONObject("websocket").has("endpoint")) {
                 this.websocketEndpoint = config.getJSONObject("websocket").getString("endpoint");
-                Log.i(TAG, "Loaded WebSocket endpoint from config: " + websocketEndpoint);
+                Log.i(TAG, "Successfully loaded WebSocket endpoint from config: " + websocketEndpoint);
             } else {
                 // Fallback to hardcoded URL
                 this.websocketEndpoint = "wss://zc4ahryh1l.execute-api.us-east-1.amazonaws.com/prod/";
@@ -217,6 +228,8 @@ public class WebsocketManager {
             this.websocketEndpoint = "wss://zc4ahryh1l.execute-api.us-east-1.amazonaws.com/prod/";
             Log.e(TAG, "Failed to load WebSocket endpoint from config, using fallback: " + websocketEndpoint, e);
         }
+        
+        Log.i(TAG, "Final WebSocket endpoint: " + websocketEndpoint);
     }
 
     public void initialize(String authToken, String deviceId, String cognitoUserName) {
@@ -290,14 +303,138 @@ public class WebsocketManager {
         connect();
     }
 
+    /**
+     * Test network connectivity and DNS resolution for the WebSocket endpoint.
+     * This helps diagnose connection issues, especially on emulators.
+     */
+    private void testNetworkConnectivity() {
+        Log.i(TAG, "Testing network connectivity...");
+        
+        // Log emulator-specific information
+        Log.i(TAG, "Device info - Build.MODEL: " + android.os.Build.MODEL);
+        Log.i(TAG, "Device info - Build.MANUFACTURER: " + android.os.Build.MANUFACTURER);
+        Log.i(TAG, "Device info - Build.PRODUCT: " + android.os.Build.PRODUCT);
+        
+        // Test basic internet connectivity
+        try {
+            java.net.InetAddress.getByName("8.8.8.8");
+            Log.i(TAG, "Basic internet connectivity: OK");
+        } catch (Exception e) {
+            Log.e(TAG, "Basic internet connectivity failed: " + e.getMessage());
+        }
+        
+        // Test DNS resolution for Google
+        try {
+            java.net.InetAddress.getByName("google.com");
+            Log.i(TAG, "DNS resolution for google.com: OK");
+        } catch (Exception e) {
+            Log.e(TAG, "DNS resolution for google.com failed: " + e.getMessage());
+        }
+        
+        // Test DNS resolution for our WebSocket endpoint
+        boolean dnsResolved = false;
+        try {
+            java.net.InetAddress.getByName("zc4ahryh1l.execute-api.us-east-1.amazonaws.com");
+            Log.i(TAG, "DNS resolution for WebSocket endpoint: OK");
+            dnsResolved = true;
+        } catch (Exception e) {
+            Log.e(TAG, "DNS resolution for WebSocket endpoint failed: " + e.getMessage());
+            
+            // Try alternative DNS resolution methods for emulators
+            if (android.os.Build.MODEL.contains("sdk") || android.os.Build.MODEL.contains("google_sdk")) {
+                Log.i(TAG, "Trying alternative DNS resolution methods for emulator...");
+                
+                // Try with explicit DNS server
+                try {
+                    java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName("zc4ahryh1l.execute-api.us-east-1.amazonaws.com");
+                    Log.i(TAG, "Alternative DNS resolution successful, found " + addresses.length + " addresses");
+                    dnsResolved = true;
+                } catch (Exception e2) {
+                    Log.e(TAG, "Alternative DNS resolution also failed: " + e2.getMessage());
+                }
+            }
+        }
+        
+        // Test HTTPS connectivity to the endpoint
+        try {
+            java.net.URL url = new java.net.URL("https://zc4ahryh1l.execute-api.us-east-1.amazonaws.com/prod/");
+            java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+            int responseCode = connection.getResponseCode();
+            Log.i(TAG, "HTTPS connectivity test response code: " + responseCode);
+            connection.disconnect();
+        } catch (Exception e) {
+            Log.e(TAG, "HTTPS connectivity test failed: " + e.getMessage());
+        }
+        
+        // Test alternative DNS servers (common emulator issue)
+        try {
+            java.net.InetAddress.getByName("1.1.1.1");
+            Log.i(TAG, "Alternative DNS (1.1.1.1) connectivity: OK");
+        } catch (Exception e) {
+            Log.e(TAG, "Alternative DNS connectivity failed: " + e.getMessage());
+        }
+        
+        // Test direct IP connectivity to our endpoint
+        try {
+            java.net.Socket socket = new java.net.Socket();
+            socket.connect(new java.net.InetSocketAddress("3.208.157.175", 443), 5000);
+            Log.i(TAG, "Direct IP connectivity to endpoint: OK");
+            socket.close();
+        } catch (Exception e) {
+            Log.e(TAG, "Direct IP connectivity to endpoint failed: " + e.getMessage());
+        }
+        
+        // Test if emulator can reach host machine
+        try {
+            java.net.Socket socket = new java.net.Socket();
+            socket.connect(new java.net.InetSocketAddress("10.0.2.2", 80), 5000);
+            Log.i(TAG, "Emulator can reach host machine: OK");
+            socket.close();
+        } catch (Exception e) {
+            Log.e(TAG, "Emulator cannot reach host machine: " + e.getMessage());
+        }
+    }
+
     private void connect() {
         Log.i(TAG, "Attempting to connect to WebSocket...");
         Log.i(TAG, "Current state: " + currentState);
         Log.i(TAG, "Is connecting: " + isConnecting.get());
         
+        // Test network connectivity first
+        testNetworkConnectivity();
+        
         if (isConnecting.get()) {
             Log.i(TAG, "Already connecting, skipping this connection attempt");
             return;
+        }
+
+        // Ensure websocketEndpoint is loaded
+        if (websocketEndpoint == null || websocketEndpoint.isEmpty()) {
+            Log.w(TAG, "WebSocket endpoint is null or empty, loading it now");
+            loadWebsocketEndpoint();
+        }
+
+        // Check if endpoint is still null after loading
+        if (websocketEndpoint == null || websocketEndpoint.isEmpty()) {
+            Log.e(TAG, "Cannot connect: WebSocket endpoint is null or empty");
+            isConnecting.set(false);
+            setConnectionState(ConnectionState.DISCONNECTED);
+            if (messageListener != null) {
+                messageListener.onFailure("WebSocket endpoint is null or empty");
+            }
+            return;
+        }
+        
+        // Test if we can resolve the hostname before attempting connection
+        try {
+            java.net.InetAddress.getByName("zc4ahryh1l.execute-api.us-east-1.amazonaws.com");
+            Log.i(TAG, "Hostname resolution successful, proceeding with connection");
+        } catch (Exception e) {
+            Log.e(TAG, "Cannot resolve hostname, but will attempt connection anyway: " + e.getMessage());
+            // The SSL certificate fix should handle this now
         }
 
         isConnecting.set(true);
@@ -307,6 +444,23 @@ public class WebsocketManager {
         Log.i(TAG, "  Authorization header: " + (authToken != null ? "present" : "null"));
         Log.i(TAG, "  DeviceId header: " + deviceId);
         Log.i(TAG, "  URL: " + websocketEndpoint);
+
+        // Add connection timeout handler
+        final Handler timeoutHandler = new Handler();
+        final Runnable timeoutRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isConnecting.get()) {
+                    Log.e(TAG, "WebSocket connection timeout after 15 seconds");
+                    isConnecting.set(false);
+                    setConnectionState(ConnectionState.DISCONNECTED);
+                    if (messageListener != null) {
+                        messageListener.onFailure("Connection timeout");
+                    }
+                }
+            }
+        };
+        timeoutHandler.postDelayed(timeoutRunnable, 15000); // 15 second timeout
 
         Request webSocketRequest = new Request.Builder()
                 .header("Authorization", authToken)
@@ -324,7 +478,16 @@ public class WebsocketManager {
                 Log.i(TAG, "Response headers: " + response.headers());
                 isConnecting.set(false);
                 reconnectAttempts.set(0);
+                totalConnectionAttempts++;
+                successfulConnections++;
+                lastConnectionSuccessTime = System.currentTimeMillis();
                 setConnectionState(ConnectionState.CONNECTED);
+                
+                // Connection successful - log for debugging
+                Log.i(TAG, "WebSocket connection successful");
+                
+                // Cancel timeout since connection succeeded
+                timeoutHandler.removeCallbacks(timeoutRunnable);
             }
 
             @Override
@@ -336,6 +499,13 @@ public class WebsocketManager {
                 Log.e(TAG, "  Throwable: " + t.getMessage());
                 Log.e(TAG, "  Throwable type: " + t.getClass().getSimpleName());
                 isConnecting.set(false);
+                totalConnectionAttempts++;
+                
+                // Connection failed - log for debugging
+                Log.w(TAG, "WebSocket connection failed: " + t.getMessage());
+                
+                // Cancel timeout since connection failed
+                timeoutHandler.removeCallbacks(timeoutRunnable);
 
                 if (currentState == ConnectionState.CONNECTED) {
                     setConnectionState(ConnectionState.RECONNECTING);
@@ -429,7 +599,27 @@ public class WebsocketManager {
                             messageListener.onTimerReceived(null);
                             return;
 
+                        case "shareTimerInvitation":
+                            JSONObject sharedTimer = jsonData.getJSONObject("timer");
+                            String sharerUsername = jsonData.getString("sharerUsername");
+                            Log.i(TAG, "Received share timer invitation from " + sharerUsername + " for timer " + sharedTimer.getString("id"));
+                            // Handle share invitation - could show notification, update UI, etc.
+                            // For now, just log the invitation
+                            return;
 
+                        case "acceptSharedTimer":
+                            JSONObject acceptedTimer = jsonData.getJSONObject("timer");
+                            String accepterUsername = jsonData.getString("accepterUsername");
+                            Log.i(TAG, "Received accept shared timer from " + accepterUsername + " for timer " + acceptedTimer.getString("id"));
+                            // Handle accept notification - could update UI, show confirmation, etc.
+                            return;
+
+                        case "rejectSharedTimer":
+                            String rejectedTimerId = jsonData.getString("timerId");
+                            String rejecterUsername = jsonData.getString("rejecterUsername");
+                            Log.i(TAG, "Received reject shared timer from " + rejecterUsername + " for timer " + rejectedTimerId);
+                            // Handle reject notification - could update UI, show notification, etc.
+                            return;
 
                         default:
                             Log.e(TAG, "Unsupported message type: " + type);
@@ -483,11 +673,9 @@ public class WebsocketManager {
         if (currentState != ConnectionState.CONNECTED) {
             Log.w(TAG, "Cannot send update: WebSocket not connected (state: " + currentState + ")");
             
-            // Try to reconnect if we're disconnected
-            if (currentState == ConnectionState.DISCONNECTED && authToken != null && deviceId != null && cognitoUserName != null) {
-                Log.i(TAG, "Attempting to reconnect before sending update");
-                connect();
-            }
+            // In on-demand mode, we don't automatically reconnect for timer updates
+            // Connection is managed by ForegroundService based on shared timer state
+            Log.d(TAG, "Staying disconnected for timer update (on-demand mode)");
             return;
         }
 
@@ -534,6 +722,92 @@ public class WebsocketManager {
                     .toString();
         } catch (Exception e) {
             Log.e(TAG, "Failed to create stop message", e);
+        }
+
+        sendMessage(webSocketRequestString);
+    }
+
+    /**
+     * Send a timer sharing invitation to specified users.
+     */
+    public void sendShareTimerInvitation(Timer timer, Set<String> usernames) {
+        Log.i(TAG, "Sending share timer invitation for timer " + timer.getId() + " to users: " + usernames);
+        
+        if (currentState != ConnectionState.CONNECTED) {
+            Log.w(TAG, "Cannot send share invitation: WebSocket not connected");
+            return;
+        }
+
+        JSONArray usernamesArray = new JSONArray();
+        usernames.forEach(usernamesArray::put);
+
+        String webSocketRequestString = null;
+        try {
+            webSocketRequestString = new JSONObject()
+                    .put("action", "sendmessage")
+                    .put("data", new JSONObject()
+                            .put("type", "shareTimerInvitation")
+                            .put("usernames", usernamesArray)
+                            .put("timer", fixFrigginTimer(timer))
+                    )
+                    .toString();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create share invitation message", e);
+        }
+
+        sendMessage(webSocketRequestString);
+    }
+
+    /**
+     * Send acceptance of a shared timer invitation.
+     */
+    public void sendAcceptSharedTimer(Timer timer) {
+        Log.i(TAG, "Sending accept shared timer for timer " + timer.getId());
+        
+        if (currentState != ConnectionState.CONNECTED) {
+            Log.w(TAG, "Cannot send accept: WebSocket not connected");
+            return;
+        }
+
+        String webSocketRequestString = null;
+        try {
+            webSocketRequestString = new JSONObject()
+                    .put("action", "sendmessage")
+                    .put("data", new JSONObject()
+                            .put("type", "acceptSharedTimer")
+                            .put("timer", fixFrigginTimer(timer))
+                    )
+                    .toString();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create accept message", e);
+        }
+
+        sendMessage(webSocketRequestString);
+    }
+
+    /**
+     * Send rejection of a shared timer invitation.
+     */
+    public void sendRejectSharedTimer(String timerId, String sharerUsername) {
+        Log.i(TAG, "Sending reject shared timer for timer " + timerId + " from " + sharerUsername);
+        
+        if (currentState != ConnectionState.CONNECTED) {
+            Log.w(TAG, "Cannot send reject: WebSocket not connected");
+            return;
+        }
+
+        String webSocketRequestString = null;
+        try {
+            webSocketRequestString = new JSONObject()
+                    .put("action", "sendmessage")
+                    .put("data", new JSONObject()
+                            .put("type", "rejectSharedTimer")
+                            .put("timerId", timerId)
+                            .put("sharerUsername", sharerUsername)
+                    )
+                    .toString();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create reject message", e);
         }
 
         sendMessage(webSocketRequestString);
