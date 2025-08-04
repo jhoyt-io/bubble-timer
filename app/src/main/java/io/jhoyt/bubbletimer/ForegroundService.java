@@ -155,6 +155,39 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 if (expandedWindow != null) {
                     expandedWindow.setDebugMode(isDebugModeEnabled);
                 }
+            } else if (command.equals("getAuthToken")) {
+                Log.i("ForegroundService", "getAuthToken command received");
+                
+                // Check if we have a valid auth token
+                if (currentUserId != null && !currentUserId.isEmpty()) {
+                    // Request auth token from MainActivity
+                    Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
+                    message.putExtra("command", "sendAuthToken");
+                    
+                    // Pass through callback information if provided
+                    String callback = intent.getStringExtra("callback");
+                    if (callback != null) {
+                        message.putExtra("callback", callback);
+                        String timerId = intent.getStringExtra("timerId");
+                        if (timerId != null) {
+                            message.putExtra("timerId", timerId);
+                        }
+                    }
+                    
+                    LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(message);
+                } else {
+                    Log.w("ForegroundService", "Cannot get auth token: no current user");
+                }
+            } else if (command.equals("connectForSharedTimers")) {
+                Log.i("ForegroundService", "connectForSharedTimers command received");
+                
+                // Trigger WebSocket connection for shared timers
+                if (currentUserId != null && !currentUserId.isEmpty()) {
+                    Log.i("ForegroundService", "Connecting WebSocket for shared timers");
+                    websocketManager.connectIfNeeded();
+                } else {
+                    Log.w("ForegroundService", "Cannot connect for shared timers: no current user");
+                }
             }
         }
     };
@@ -222,16 +255,6 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
 
             @Override
             public void onTimerReceived(Timer timer) {
-                if (timer == null) {
-                    // This is a signal to clean up UI state
-                    // Create a copy of the entries to avoid ConcurrentModificationException
-                    new HashMap<>(windowsByTimerId).forEach((timerId, window) -> {
-                        window.close();
-                        windowsByTimerId.remove(timerId);
-                    });
-                    return;
-                }
-                
                 Log.i("ForegroundService", "Received timer update from WebSocket: " + timer.getId());
                 
                 // Update the UI for this timer if it's currently displayed
@@ -249,6 +272,26 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                     Window window = new Window(getApplicationContext(), false, currentUserId);
                     window.open(timer, ForegroundService.this);
                     windowsByTimerId.put(timer.getId(), window);
+                }
+            }
+
+            @Override
+            public void onTimerRemoved(String timerId) {
+                Log.i("ForegroundService", "Received timer removal from WebSocket: " + timerId);
+                
+                // Clean up the specific timer's window
+                Window window = windowsByTimerId.get(timerId);
+                if (window != null) {
+                    window.close();
+                    windowsByTimerId.remove(timerId);
+                }
+                
+                // Also close expanded window if it's for this timer
+                if (expandedWindow != null && expandedWindow.isOpen()) {
+                    Timer expandedTimer = expandedWindow.getTimerView().getTimer();
+                    if (expandedTimer != null && expandedTimer.getId().equals(timerId)) {
+                        expandedWindow.close();
+                    }
                 }
             }
         });

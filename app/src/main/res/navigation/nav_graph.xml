@@ -9,5 +9,17 @@
         android:id="@+id/FirstFragment"
         android:name="io.jhoyt.bubbletimer.TimerListFragment"
         android:label="@string/first_fragment_label"
-        tools:layout="@layout/fragment_timer_list"/>
+        tools:layout="@layout/fragment_timer_list">
+        
+        <action
+            android:id="@+id/action_FirstFragment_to_SharedTimerListFragment"
+            app:destination="@id/SharedTimerListFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/SharedTimerListFragment"
+        android:name="io.jhoyt.bubbletimer.SharedTimerListFragment"
+        android:label="Shared Timers"
+        tools:layout="@layout/fragment_shared_timers" />
+
 </navigation>

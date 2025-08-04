@@ -82,6 +82,7 @@ public class WebsocketManager {
         void onFailure(String reason);
         void onConnectionStateChanged(ConnectionState newState);
         void onTimerReceived(Timer timer);
+        void onTimerRemoved(String timerId);
     }
 
     public void setMessageListener(WebsocketMessageListener messageListener) {
@@ -595,8 +596,7 @@ public class WebsocketManager {
                         case "stopTimer":
                             String timerId = jsonData.getString("timerId");
                             removeTimerFromLocalTimerList(timerId);
-                            // Notify the UI to clean up any windows/views for this timer
-                            messageListener.onTimerReceived(null);
+                            messageListener.onTimerRemoved(timerId);
                             return;
 
                         case "shareTimerInvitation":

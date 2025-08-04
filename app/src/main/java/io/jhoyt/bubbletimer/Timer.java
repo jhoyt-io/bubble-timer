@@ -4,6 +4,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.compose.runtime.external.kotlinx.collections.immutable.ImmutableSet;
 
+import com.google.gson.annotations.SerializedName;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -16,19 +18,37 @@ import java.util.Set;
 import java.util.UUID;
 
 public class Timer {
+    @SerializedName("id")
+    private String id;
+    
+    @SerializedName("userId")
+    private String userId;
+    
+    @SerializedName("name")
+    private String name;
+    
+    @SerializedName("totalDuration")
+    private String totalDuration;
+    
+    @SerializedName("remainingDuration")
+    private String remainingDuration;
+    
+    @SerializedName("endTime")
+    private String endTime;
+    
+    @SerializedName("sharedWith")
+    private Set<String> sharedWith;
+
     private TimerData timerData;
 
-    private Set<String> sharedWith;
+    public Timer() {
+        this.sharedWith = new HashSet<>();
+    }
 
     public Timer(TimerData timerData, Set<String> sharedWith) {
         this.timerData = timerData;
         this.sharedWith = sharedWith;
     }
-
-    public Timer() {
-        this(new TimerData(String.valueOf(UUID.randomUUID()), null, null, null, null, null, Set.of()), new HashSet<>());
-    }
-
 
     public Timer(String userId, String name, Duration duration, Set<String> tags) {
         this(new TimerData(
@@ -176,15 +196,15 @@ public class Timer {
     }
 
     public String getId() {
-        return this.timerData.id;
+        return id != null ? id : (timerData != null ? timerData.id : null);
     }
 
     public String getName() {
-        return this.timerData.name;
+        return name != null ? name : (timerData != null ? timerData.name : null);
     }
 
     public String getUserId() {
-        return this.timerData.userId;
+        return userId != null ? userId : (timerData != null ? timerData.userId : null);
     }
 
     public void addTime(Duration duration) {
@@ -242,18 +262,46 @@ public class Timer {
     }
 
     public Duration getTotalDuration() {
-        return this.timerData.totalDuration;
+        if (totalDuration != null) {
+            try {
+                return Duration.parse(totalDuration);
+            } catch (Exception e) {
+                // Fall back to timerData
+            }
+        }
+        return timerData != null ? timerData.totalDuration : null;
     }
 
     public Duration getRemainingDuration() {
-        if (this.timerData.remainingDurationWhenPaused == null) {
-            if (this.timerData.timerEnd == null) {
-                return this.timerData.totalDuration;
+        if (remainingDuration != null) {
+            try {
+                return Duration.parse(remainingDuration);
+            } catch (Exception e) {
+                // Fall back to timerData
+            }
+        }
+        if (this.timerData != null) {
+            if (this.timerData.remainingDurationWhenPaused == null) {
+                if (this.timerData.timerEnd == null) {
+                    return this.timerData.totalDuration;
+                }
+
+                return Duration.between(LocalDateTime.now(), this.timerData.timerEnd);
             }
 
-            return Duration.between(LocalDateTime.now(), this.timerData.timerEnd);
+            return this.timerData.remainingDurationWhenPaused;
         }
+        return null;
+    }
 
-        return this.timerData.remainingDurationWhenPaused;
+    public LocalDateTime getTimerEnd() {
+        if (endTime != null) {
+            try {
+                return LocalDateTime.parse(endTime);
+            } catch (Exception e) {
+                // Fall back to timerData
+            }
+        }
+        return timerData != null ? timerData.timerEnd : null;
     }
 }

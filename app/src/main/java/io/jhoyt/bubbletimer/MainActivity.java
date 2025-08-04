@@ -99,6 +99,16 @@ public class MainActivity extends AppCompatActivity {
                         message.putExtra("authToken", idToken);
                         message.putExtra("userId", userId);
 
+                        // Pass through callback information if provided
+                        String callback = intent.getStringExtra("callback");
+                        if (callback != null) {
+                            message.putExtra("callback", callback);
+                            String timerId = intent.getStringExtra("timerId");
+                            if (timerId != null) {
+                                message.putExtra("timerId", timerId);
+                            }
+                        }
+
                         Log.i("MainActivity", "Sending auth token to ForegroundService");
                         LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(message);
                         
@@ -222,7 +232,8 @@ public class MainActivity extends AppCompatActivity {
         }
         tagViewModel.getAllTags().observe(this, tags -> {
             Log.d("MainActivity", "setupTabsAndAdapterIfReady - got " + tags.size() + " tags");
-            List<String> tabs = new ArrayList<>(tags.size()+1);
+            List<String> tabs = new ArrayList<>(tags.size()+2);
+            tabs.add("SHARED"); // Add shared timers tab first
             tabs.add("ALL");
             tags.forEach(tag -> tabs.add(tag.name));
 
