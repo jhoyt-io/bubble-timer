@@ -4,6 +4,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.util.Log;
 
 import java.util.function.Function;
 
@@ -45,8 +46,11 @@ public class CircularMenuButton {
 
     public void draw(Canvas canvas) {
         Paint bgPaint = new Paint(circlePaint);
-        if (isSelected.apply(null)) {
+        boolean selected = isSelected.apply(text);
+        Log.d("CircularMenuButton", "Drawing button '" + text + "' - selected: " + selected);
+        if (selected) {
             bgPaint.setColor(android.graphics.Color.parseColor("#FF00FF")); // Bright magenta for debugging
+            Log.d("CircularMenuButton", "Setting button '" + text + "' to magenta (selected)");
         }
         canvas.drawCircle(centerX, centerY, radius - 10, bgPaint);
         if (icon != null) {
@@ -56,7 +60,20 @@ public class CircularMenuButton {
             Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             textPaint.setColor(android.graphics.Color.BLACK);
             textPaint.setTextAlign(Paint.Align.CENTER);
-            textPaint.setTextSize(radius / 2.5f);
+            
+            // Calculate appropriate text size based on text length and button radius
+            float baseTextSize = radius / 2.5f;
+            float maxTextWidth = radius * 1.6f; // Leave some margin
+            float textSize = baseTextSize;
+            
+            // Scale down text size if it's too long
+            textPaint.setTextSize(textSize);
+            float textWidth = textPaint.measureText(text);
+            if (textWidth > maxTextWidth) {
+                textSize = (maxTextWidth / textWidth) * textSize;
+                textPaint.setTextSize(textSize);
+            }
+            
             canvas.drawText(text, centerX, centerY + (radius / 4.0f), textPaint);
         }
     }

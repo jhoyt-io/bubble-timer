@@ -191,6 +191,12 @@ public class Timer {
         this.sharedWith = Collections.unmodifiableSet(shareWith);
     }
 
+    public String[] getFriendNames() {
+        // This would ideally be dynamic, but for now return the hardcoded list
+        // The TimerView will handle adding the current user
+        return new String[]{"ouchthathoyt", "jill", "tester"};
+    }
+
     public TimerData getTimerData() {
         return this.timerData;
     }

@@ -76,6 +76,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
     private boolean isDebugModeEnabled = false;  // Track if debug mode is enabled
     private long lastAuthTokenRequest = 0;
     private static final long AUTH_TOKEN_DEBOUNCE_MS = 5000; // 5 seconds
+    private Timer pendingTimerUpdate = null; // Timer to send when WebSocket connects
 
     private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -128,6 +129,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 Log.i("ForegroundService", "Auth token length: " + (authToken != null ? authToken.length() : 0));
                 Log.i("ForegroundService", "User id: " + currentUserId);
                 Log.i("ForegroundService", "Android id: " + androidId);
+                Log.d("ForegroundService", "Number of existing windows to update: " + windowsByTimerId.size());
                 
                 if (authToken == null || authToken.isEmpty()) {
                     Log.e("ForegroundService", "ERROR: Received null or empty auth token!");
@@ -144,8 +146,25 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 Log.i("ForegroundService", "Initializing WebSocket with received credentials");
                 websocketManager.initialize(authToken, androidId, currentUserId);
                 
+                // Update current user ID on all existing windows
+                windowsByTimerId.forEach((timerId, window) -> {
+                    Log.d("ForegroundService", "Updating currentUserId on existing window: " + currentUserId);
+                    window.getTimerView().setCurrentUserId(currentUserId);
+                });
+                if (expandedWindow != null) {
+                    Log.d("ForegroundService", "Updating currentUserId on expanded window: " + currentUserId);
+                    expandedWindow.getTimerView().setCurrentUserId(currentUserId);
+                }
+                
                 // Check if we need to connect based on current shared timers
                 checkWebsocketConnectionNeeds();
+                
+                // Handle specific callbacks
+                String callback = intent.getStringExtra("callback");
+                if ("connectForSharedTimers".equals(callback)) {
+                    Log.i("ForegroundService", "Received auth token for connectForSharedTimers callback");
+                    websocketManager.connectIfNeeded();
+                }
             } else if (command.equals("toggleDebugMode")) {
                 isDebugModeEnabled = !isDebugModeEnabled;
                 // Update debug mode for all windows
@@ -158,36 +177,31 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
             } else if (command.equals("getAuthToken")) {
                 Log.i("ForegroundService", "getAuthToken command received");
                 
-                // Check if we have a valid auth token
-                if (currentUserId != null && !currentUserId.isEmpty()) {
-                    // Request auth token from MainActivity
-                    Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
-                    message.putExtra("command", "sendAuthToken");
-                    
-                    // Pass through callback information if provided
-                    String callback = intent.getStringExtra("callback");
-                    if (callback != null) {
-                        message.putExtra("callback", callback);
-                        String timerId = intent.getStringExtra("timerId");
-                        if (timerId != null) {
-                            message.putExtra("timerId", timerId);
-                        }
+                // Always request auth token from MainActivity, regardless of cached currentUserId
+                // MainActivity will check the actual authentication state with Amplify
+                Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
+                message.putExtra("command", "sendAuthToken");
+                
+                // Pass through callback information if provided
+                String callback = intent.getStringExtra("callback");
+                if (callback != null) {
+                    message.putExtra("callback", callback);
+                    String timerId = intent.getStringExtra("timerId");
+                    if (timerId != null) {
+                        message.putExtra("timerId", timerId);
                     }
-                    
-                    LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(message);
-                } else {
-                    Log.w("ForegroundService", "Cannot get auth token: no current user");
                 }
+                
+                LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(message);
             } else if (command.equals("connectForSharedTimers")) {
                 Log.i("ForegroundService", "connectForSharedTimers command received");
                 
-                // Trigger WebSocket connection for shared timers
-                if (currentUserId != null && !currentUserId.isEmpty()) {
-                    Log.i("ForegroundService", "Connecting WebSocket for shared timers");
-                    websocketManager.connectIfNeeded();
-                } else {
-                    Log.w("ForegroundService", "Cannot connect for shared timers: no current user");
-                }
+                // Request fresh auth token before attempting to connect
+                // This ensures we have valid credentials for the WebSocket connection
+                Intent message = new Intent(MainActivity.MESSAGE_RECEIVER_ACTION);
+                message.putExtra("command", "sendAuthToken");
+                message.putExtra("callback", "connectForSharedTimers");
+                LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(message);
             }
         }
     };
@@ -235,6 +249,12 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 switch (newState) {
                     case CONNECTED:
                         statusText = "Connected";
+                        // Send any pending timer update when WebSocket connects
+                        if (pendingTimerUpdate != null) {
+                            Log.d("ForegroundService", "WebSocket connected, sending pending timer update: " + pendingTimerUpdate.getId());
+                            websocketManager.sendUpdateTimerToWebsocket(pendingTimerUpdate, "pending update");
+                            pendingTimerUpdate = null;
+                        }
                         break;
                     case CONNECTING:
                         statusText = "Connecting...";
@@ -269,6 +289,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 
                 // If this is a new timer and overlay is shown, create a new window for it
                 if (!windowsByTimerId.containsKey(timer.getId()) && isOverlayShown) {
+                    Log.d("ForegroundService", "Creating new window with currentUserId: " + currentUserId);
                     Window window = new Window(getApplicationContext(), false, currentUserId);
                     window.open(timer, ForegroundService.this);
                     windowsByTimerId.put(timer.getId(), window);
@@ -281,18 +302,24 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 
                 // Clean up the specific timer's window
                 Window window = windowsByTimerId.get(timerId);
+                Log.i("ForegroundService", "Found window for timerId " + timerId + ": " + (window != null ? "yes" : "no"));
                 if (window != null) {
+                    Log.i("ForegroundService", "Closing window for timerId: " + timerId);
                     window.close();
                     windowsByTimerId.remove(timerId);
+                    Log.i("ForegroundService", "Removed window from map for timerId: " + timerId);
                 }
                 
                 // Also close expanded window if it's for this timer
                 if (expandedWindow != null && expandedWindow.isOpen()) {
                     Timer expandedTimer = expandedWindow.getTimerView().getTimer();
                     if (expandedTimer != null && expandedTimer.getId().equals(timerId)) {
+                        Log.i("ForegroundService", "Closing expanded window for timerId: " + timerId);
                         expandedWindow.close();
                     }
                 }
+                
+                Log.i("ForegroundService", "Completed timer removal handling for timerId: " + timerId);
             }
         });
 
@@ -332,6 +359,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
                 @Override
                 public void onInserted(int position, int count) {
                     timers.subList(position, position + count).forEach(timer -> {
+                        Log.d("ForegroundService", "Creating new window (onInserted) with currentUserId: " + currentUserId);
                         Window window = new Window(getApplicationContext(), false, currentUserId);
 
                         if (isOverlayShown) {
@@ -575,6 +603,7 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             if (this.expandedWindow == null) {
+                Log.d("ForegroundService", "Creating expanded window with currentUserId: " + currentUserId);
                 this.expandedWindow = new Window(getApplicationContext(), true, currentUserId);
             }
         }
@@ -606,7 +635,32 @@ public class ForegroundService extends LifecycleService implements Window.Bubble
         }
         Log.i("ForegroundService", "Timer from repository - sharedWith: " + 
               (timerFromRepository.getSharedWith() != null ? timerFromRepository.getSharedWith().toString() : "null"));
-        this.websocketManager.sendUpdateTimerToWebsocket(timerFromRepository, "who knows");
+        
+        // Update shared timer tracking to ensure WebSocket connection is established
+        // This is important when a timer becomes shared for the first time
+        Log.d("ForegroundService", "activeTimers is null: " + (activeTimers == null));
+        if (activeTimers != null) {
+            Log.d("ForegroundService", "activeTimers size: " + activeTimers.size());
+            Log.d("ForegroundService", "Updating shared timer tracking before sending WebSocket message");
+            updateSharedTimerTracking(activeTimers);
+        } else {
+            Log.d("ForegroundService", "activeTimers is null, skipping shared timer tracking update");
+        }
+        
+        // Check if WebSocket is connected before sending the message
+        WebsocketManager.ConnectionState connectionState = websocketManager.getConnectionState();
+        Log.d("ForegroundService", "Sending update timer to WebSocket - timer: " + timerFromRepository.getId() + 
+              ", sharedWith: " + (timerFromRepository.getSharedWith() != null ? timerFromRepository.getSharedWith().toString() : "null") +
+              ", WebSocket state: " + connectionState);
+        
+        if (connectionState == WebsocketManager.ConnectionState.CONNECTED) {
+            this.websocketManager.sendUpdateTimerToWebsocket(timerFromRepository, "who knows");
+            Log.d("ForegroundService", "WebSocket message sent successfully");
+        } else {
+            Log.d("ForegroundService", "WebSocket not connected (state: " + connectionState + "), will send message when connected");
+            // Store the timer to send when WebSocket connects
+            pendingTimerUpdate = timerFromRepository;
+        }
     }
 
     @Override

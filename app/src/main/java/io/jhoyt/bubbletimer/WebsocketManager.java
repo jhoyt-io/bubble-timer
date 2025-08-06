@@ -5,7 +5,6 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.lifecycle.LifecycleOwner;
 
 import com.amplifyframework.core.configuration.AmplifyOutputs;
 
@@ -67,7 +66,6 @@ public class WebsocketManager {
     private long lastConnectionSuccessTime = 0;
     private int totalConnectionAttempts = 0;
     private int successfulConnections = 0;
-    private static final long CONNECTION_STABILITY_THRESHOLD = 30000; // 30 seconds
 
     public enum ConnectionState {
         DISCONNECTED,
@@ -595,30 +593,14 @@ public class WebsocketManager {
 
                         case "stopTimer":
                             String timerId = jsonData.getString("timerId");
+                            Log.i(TAG, "Received stop timer message for timerId: " + timerId);
                             removeTimerFromLocalTimerList(timerId);
-                            messageListener.onTimerRemoved(timerId);
-                            return;
-
-                        case "shareTimerInvitation":
-                            JSONObject sharedTimer = jsonData.getJSONObject("timer");
-                            String sharerUsername = jsonData.getString("sharerUsername");
-                            Log.i(TAG, "Received share timer invitation from " + sharerUsername + " for timer " + sharedTimer.getString("id"));
-                            // Handle share invitation - could show notification, update UI, etc.
-                            // For now, just log the invitation
-                            return;
-
-                        case "acceptSharedTimer":
-                            JSONObject acceptedTimer = jsonData.getJSONObject("timer");
-                            String accepterUsername = jsonData.getString("accepterUsername");
-                            Log.i(TAG, "Received accept shared timer from " + accepterUsername + " for timer " + acceptedTimer.getString("id"));
-                            // Handle accept notification - could update UI, show confirmation, etc.
-                            return;
-
-                        case "rejectSharedTimer":
-                            String rejectedTimerId = jsonData.getString("timerId");
-                            String rejecterUsername = jsonData.getString("rejecterUsername");
-                            Log.i(TAG, "Received reject shared timer from " + rejecterUsername + " for timer " + rejectedTimerId);
-                            // Handle reject notification - could update UI, show notification, etc.
+                            Log.i(TAG, "Calling onTimerRemoved for timerId: " + timerId);
+                            // Ensure callback is called on main thread
+                            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                                messageListener.onTimerRemoved(timerId);
+                            });
+                            Log.i(TAG, "Completed stop timer handling for timerId: " + timerId);
                             return;
 
                         default:
@@ -727,91 +709,7 @@ public class WebsocketManager {
         sendMessage(webSocketRequestString);
     }
 
-    /**
-     * Send a timer sharing invitation to specified users.
-     */
-    public void sendShareTimerInvitation(Timer timer, Set<String> usernames) {
-        Log.i(TAG, "Sending share timer invitation for timer " + timer.getId() + " to users: " + usernames);
-        
-        if (currentState != ConnectionState.CONNECTED) {
-            Log.w(TAG, "Cannot send share invitation: WebSocket not connected");
-            return;
-        }
 
-        JSONArray usernamesArray = new JSONArray();
-        usernames.forEach(usernamesArray::put);
-
-        String webSocketRequestString = null;
-        try {
-            webSocketRequestString = new JSONObject()
-                    .put("action", "sendmessage")
-                    .put("data", new JSONObject()
-                            .put("type", "shareTimerInvitation")
-                            .put("usernames", usernamesArray)
-                            .put("timer", fixFrigginTimer(timer))
-                    )
-                    .toString();
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to create share invitation message", e);
-        }
-
-        sendMessage(webSocketRequestString);
-    }
-
-    /**
-     * Send acceptance of a shared timer invitation.
-     */
-    public void sendAcceptSharedTimer(Timer timer) {
-        Log.i(TAG, "Sending accept shared timer for timer " + timer.getId());
-        
-        if (currentState != ConnectionState.CONNECTED) {
-            Log.w(TAG, "Cannot send accept: WebSocket not connected");
-            return;
-        }
-
-        String webSocketRequestString = null;
-        try {
-            webSocketRequestString = new JSONObject()
-                    .put("action", "sendmessage")
-                    .put("data", new JSONObject()
-                            .put("type", "acceptSharedTimer")
-                            .put("timer", fixFrigginTimer(timer))
-                    )
-                    .toString();
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to create accept message", e);
-        }
-
-        sendMessage(webSocketRequestString);
-    }
-
-    /**
-     * Send rejection of a shared timer invitation.
-     */
-    public void sendRejectSharedTimer(String timerId, String sharerUsername) {
-        Log.i(TAG, "Sending reject shared timer for timer " + timerId + " from " + sharerUsername);
-        
-        if (currentState != ConnectionState.CONNECTED) {
-            Log.w(TAG, "Cannot send reject: WebSocket not connected");
-            return;
-        }
-
-        String webSocketRequestString = null;
-        try {
-            webSocketRequestString = new JSONObject()
-                    .put("action", "sendmessage")
-                    .put("data", new JSONObject()
-                            .put("type", "rejectSharedTimer")
-                            .put("timerId", timerId)
-                            .put("sharerUsername", sharerUsername)
-                    )
-                    .toString();
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to create reject message", e);
-        }
-
-        sendMessage(webSocketRequestString);
-    }
 
 
 

@@ -13,6 +13,8 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.os.Looper;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -233,8 +235,8 @@ public class MainActivity extends AppCompatActivity {
         tagViewModel.getAllTags().observe(this, tags -> {
             Log.d("MainActivity", "setupTabsAndAdapterIfReady - got " + tags.size() + " tags");
             List<String> tabs = new ArrayList<>(tags.size()+2);
-            tabs.add("SHARED"); // Add shared timers tab first
-            tabs.add("ALL");
+            tabs.add("ALL"); // Add ALL tab first (was SHARED)
+            tabs.add("SHARED"); // Add shared timers tab second
             tags.forEach(tag -> tabs.add(tag.name));
 
             ViewPager2 viewPager = findViewById(R.id.timerPager);
@@ -257,21 +259,12 @@ public class MainActivity extends AppCompatActivity {
         Timer timer = new Timer(userId, name, duration, tags);
         timer.unpause();
 
+        // ActiveTimerViewModel handles background execution
         this.activeTimerViewModel.insert(timer);
     }
 
     public void deleteTimer(int id) {
-        // Show loading state if needed
-        timerViewModel.isDeleting().observe(this, isDeleting -> {
-            if (isDeleting) {
-                // You could show a loading indicator here if needed
-                // findViewById(R.id.loadingIndicator).setVisibility(View.VISIBLE);
-            } else {
-                // findViewById(R.id.loadingIndicator).setVisibility(View.GONE);
-            }
-        });
-        
-        // Delete timer - this will update UI immediately through the cache
+        // Repository handles background execution and immediate UI updates
         timerViewModel.deleteById(id);
     }
 
@@ -311,13 +304,18 @@ public class MainActivity extends AppCompatActivity {
                 String title = data.getStringExtra("timerTitle");
                 String durationString = data.getStringExtra("timerDuration");
                 String tagsString = data.getStringExtra("tagsString");
+                
+                // Ensure tagsString is never null
+                if (tagsString == null) {
+                    tagsString = "";
+                }
 
                 String[] durationStringSplit = durationString.split(":");
                 Duration duration = Duration.ofSeconds(5);
 
-                Set<String> tags = new HashSet<>();
-                if (tagsString != null) {
-                    tags = Set.of(tagsString.split("#~#"));
+                final Set<String> tags = new HashSet<>();
+                if (!tagsString.isEmpty()) {
+                    tags.addAll(Set.of(tagsString.split("#~#")));
                 }
 
                 final List<String> allTags =
@@ -326,6 +324,8 @@ public class MainActivity extends AppCompatActivity {
                     : this.tagViewModel.getAllTags().getValue().stream()
                             .map(tag -> tag.name)
                             .collect(Collectors.toList());
+                
+                // TagViewModel handles background execution
                 tags.forEach(tag -> {
                     if (!tag.trim().isEmpty() && !allTags.contains(tag) ) {
                         this.tagViewModel.insert(new Tag(tag));
@@ -353,29 +353,51 @@ public class MainActivity extends AppCompatActivity {
                     duration = duration.plus(Duration.ofSeconds(seconds));
                 }
 
+                final Duration timerDuration = duration;
+                final String timerTagsString = tagsString;
                 if (requestCode == NEW_TIMER_REQUEST) {
+                    // Show loading overlay
+                    View loadingOverlay = findViewById(R.id.loadingOverlay);
+                    TextView loadingText = findViewById(R.id.loadingText);
+                    loadingText.setText("Creating timer...");
+                    loadingOverlay.setVisibility(View.VISIBLE);
+
+                    // Repository handles background execution
                     io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
                             title,
-                            duration,
-                            tagsString
+                            timerDuration,
+                            timerTagsString
                     );
                     this.timerViewModel.insert(timer);
 
                     boolean startTimerNow = data.getBooleanExtra("startTimerNow", false);
                     if (startTimerNow) {
-                        startTimer(title, duration, tags);
+                        startTimer(title, timerDuration, tags);
                     }
+                    
+                    // Hide loading overlay immediately - the timer list will update via observer
+                    loadingOverlay.setVisibility(View.GONE);
                 } else if (requestCode == EDIT_TIMER_REQUEST) {
                     int timerId = data.getIntExtra("timerId", -1);
 
                     if (timerId > -1) {
+                        // Show loading overlay
+                        View loadingOverlay = findViewById(R.id.loadingOverlay);
+                        TextView loadingText = findViewById(R.id.loadingText);
+                        loadingText.setText("Updating timer...");
+                        loadingOverlay.setVisibility(View.VISIBLE);
+                        
+                        // Repository handles background execution
                         io.jhoyt.bubbletimer.db.Timer timer = new io.jhoyt.bubbletimer.db.Timer(
                                 timerId,
                                 title,
-                                duration,
-                                tagsString
+                                timerDuration,
+                                timerTagsString
                         );
                         this.timerViewModel.update(timer);
+                        
+                        // Hide loading overlay immediately - the timer list will update via observer
+                        loadingOverlay.setVisibility(View.GONE);
                     }
                 }
             }

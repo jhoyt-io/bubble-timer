@@ -72,6 +72,7 @@ public class Window {
     private BubbleEventListener bubbleEventListener;
 
     public Window(Context context, Boolean expanded, String userId) {
+        Log.d("Window", "Window constructor called with userId: " + userId);
         this.windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         this.layoutInflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         this.userId = userId;
@@ -146,6 +147,7 @@ public class Window {
         }
 
         // Set the current user ID
+        Log.d("Window", "Setting current user ID on TimerView: " + userId);
         timer.setCurrentUserId(userId);
 
         this.timer.setOnModeChangeListener(new TimerView.OnModeChangeListener() {
@@ -298,37 +300,40 @@ public class Window {
                                 return true;
                             }
                             Set<String> sharedWith = new HashSet<>(timer.getSharedWith());
+                            
+                            String[] friendNames = TimerView.FRIEND_NAMES;
+                            
                             if (buttonPressed == 101) {
-                                // Toggle share with Alice
-                                if (sharedWith.contains("ouchthathoyt")) {
-                                    sharedWith.remove("ouchthathoyt");
+                                // Toggle share with first friend
+                                if (sharedWith.contains(friendNames[0])) {
+                                    sharedWith.remove(friendNames[0]);
                                     timer.setSharedWith(sharedWith);
                                 } else {
-                                    timer.shareWith("ouchthathoyt");
+                                    timer.shareWith(friendNames[0]);
                                 }
                                 timer.refreshMenuLayout();
                                 bubbleEventListener.onTimerUpdated(timer.getTimer());
                                 return true;
                             }
                             if (buttonPressed == 102) {
-                                // Toggle share with Bob
-                                if (sharedWith.contains("jill")) {
-                                    sharedWith.remove("jill");
+                                // Toggle share with second friend
+                                if (sharedWith.contains(friendNames[1])) {
+                                    sharedWith.remove(friendNames[1]);
                                     timer.setSharedWith(sharedWith);
                                 } else {
-                                    timer.shareWith("jill");
+                                    timer.shareWith(friendNames[1]);
                                 }
                                 timer.refreshMenuLayout();
                                 bubbleEventListener.onTimerUpdated(timer.getTimer());
                                 return true;
                             }
                             if (buttonPressed == 103) {
-                                // Toggle share with Carol
-                                if (sharedWith.contains("tester")) {
-                                    sharedWith.remove("tester");
+                                // Toggle share with third friend
+                                if (sharedWith.contains(friendNames[2])) {
+                                    sharedWith.remove(friendNames[2]);
                                     timer.setSharedWith(sharedWith);
                                 } else {
-                                    timer.shareWith("tester");
+                                    timer.shareWith(friendNames[2]);
                                 }
                                 timer.refreshMenuLayout();
                                 bubbleEventListener.onTimerUpdated(timer.getTimer());

@@ -22,10 +22,12 @@ public class TagViewModel extends AndroidViewModel {
     }
 
     public void insert(Tag tag) {
+        // Repository handles background execution
         tagRepository.insert(tag);
     }
 
     public void delete(Tag tag) {
+        // Repository handles background execution
         tagRepository.delete(tag);
     }
 }

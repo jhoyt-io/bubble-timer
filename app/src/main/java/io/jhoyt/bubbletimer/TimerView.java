@@ -22,7 +22,6 @@ public class TimerView extends View {
     private static final float BUTTON_RADIUS = 80.0f;
     private static final float DISMISS_CIRCLE_RADIUS = 80.0f;
     private static final float DISMISS_CIRCLE_PULL_THRESHOLD = 150.0f;
-    private static final float DISMISS_CIRCLE_BOTTOM_MARGIN = 200.0f; // Increased margin from bottom
 
     public static final int MODE_AUTO = -1;
     public static final int MODE_OVERLAY = 0;
@@ -60,7 +59,6 @@ public class TimerView extends View {
     private Timer timer;
     private String currentUserId;
     private long lastUpdateTime = 0;
-    private static final long UPDATE_THRESHOLD = 1000; // 1 second
 
     private CircularMenuLayout menuLayout;
 
@@ -69,7 +67,8 @@ public class TimerView extends View {
     private static final int BUTTON_ID_FRIEND_1 = 101;
     private static final int BUTTON_ID_FRIEND_2 = 102;
     private static final int BUTTON_ID_FRIEND_3 = 103;
-    private static final String[] FRIEND_NAMES = {"ouchthathoyt", "jill", "tester"};
+
+    public static final String[] FRIEND_NAMES = {"ouchthathoyt", "jill", "tester"};
 
     public TimerView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -127,6 +126,7 @@ public class TimerView extends View {
     }
 
     public void setCurrentUserId(String currentUserId) {
+        Log.d("TimerView", "setCurrentUserId called with: " + currentUserId);
         this.currentUserId = currentUserId;
     }
 
@@ -205,7 +205,29 @@ public class TimerView extends View {
     }
 
     public void showShareMenu() {
+        Log.d("TimerView", "showShareMenu called");
+        Log.d("TimerView", "currentUserId: " + currentUserId);
+        Log.d("TimerView", "timer: " + (timer != null ? "not null" : "null"));
+        
         inShareMenu = true;
+        
+        // Ensure current user is included in sharedWith before setting up menu
+        if (currentUserId != null && !currentUserId.isEmpty() && timer != null) {
+            Set<String> sharedWith = new HashSet<>(timer.getSharedWith());
+            Log.d("TimerView", "Original sharedWith: " + sharedWith);
+            Log.d("TimerView", "currentUserId in sharedWith: " + sharedWith.contains(currentUserId));
+            
+            if (!sharedWith.contains(currentUserId)) {
+                sharedWith.add(currentUserId);
+                timer.setSharedWith(sharedWith);
+                Log.d("TimerView", "Added currentUserId to sharedWith: " + sharedWith);
+            } else {
+                Log.d("TimerView", "currentUserId already in sharedWith");
+            }
+        } else {
+            Log.d("TimerView", "Skipping auto-inclusion - currentUserId: " + currentUserId + ", timer: " + (timer != null));
+        }
+        
         menuLayout = null;
         invalidate();
     }
@@ -240,13 +262,32 @@ public class TimerView extends View {
             mainRadius = LARGE_CIRCLE_RADIUS;
             buttonRadius = BUTTON_RADIUS;
             Set<String> sharedWith = timer.getSharedWith();
+            Log.d("TimerView", "setupMenuLayout - sharedWith: " + sharedWith);
+            Log.d("TimerView", "setupMenuLayout - currentUserId: " + currentUserId);
+            Log.d("TimerView", "setupMenuLayout - currentUserId in sharedWith: " + (currentUserId != null ? sharedWith.contains(currentUserId) : "null"));
+            
             menuLayout = new CircularMenuLayout(centerX, centerY, mainRadius, buttonRadius, timer, currentUserId);
             // Add center back button as a real button
             menuLayout.addButtonWithText("Back", BUTTON_ID_BACK, 0, 0, timer -> false);
+            
+            // Use dynamic friend list that includes current user
+            Log.d("TimerView", "setupMenuLayout - friendNames: " + java.util.Arrays.toString(FRIEND_NAMES));
             // Add friend buttons with text and selected state
-            menuLayout.addButtonWithText(FRIEND_NAMES[0], BUTTON_ID_FRIEND_1, 0, mainRadius + buttonRadius, timer -> sharedWith.contains(FRIEND_NAMES[0]));
-            menuLayout.addButtonWithText(FRIEND_NAMES[1], BUTTON_ID_FRIEND_2, 120, mainRadius + buttonRadius, timer -> sharedWith.contains(FRIEND_NAMES[1]));
-            menuLayout.addButtonWithText(FRIEND_NAMES[2], BUTTON_ID_FRIEND_3, 240, mainRadius + buttonRadius, timer -> sharedWith.contains(FRIEND_NAMES[2]));
+            menuLayout.addButtonWithText(FRIEND_NAMES[0], BUTTON_ID_FRIEND_1, 0, mainRadius + buttonRadius, timer -> {
+                boolean selected = sharedWith.contains(FRIEND_NAMES[0]);
+                Log.d("TimerView", "Button 1 (" + FRIEND_NAMES[0] + ") selected: " + selected);
+                return selected;
+            });
+            menuLayout.addButtonWithText(FRIEND_NAMES[1], BUTTON_ID_FRIEND_2, 120, mainRadius + buttonRadius, timer -> {
+                boolean selected = sharedWith.contains(FRIEND_NAMES[1]);
+                Log.d("TimerView", "Button 2 (" + FRIEND_NAMES[1] + ") selected: " + selected);
+                return selected;
+            });
+            menuLayout.addButtonWithText(FRIEND_NAMES[2], BUTTON_ID_FRIEND_3, 240, mainRadius + buttonRadius, timer -> {
+                boolean selected = sharedWith.contains(FRIEND_NAMES[2]);
+                Log.d("TimerView", "Button 3 (" + FRIEND_NAMES[2] + ") selected: " + selected);
+                return selected;
+            });
         } else {
             centerX = getWidth() / 2.0f;
             centerY = getHeight() / 2.0f;

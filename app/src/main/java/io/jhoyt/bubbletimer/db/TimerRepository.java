@@ -5,7 +5,6 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
@@ -15,7 +14,6 @@ public class TimerRepository {
     private final ConcurrentHashMap<Integer, Timer> timerCache = new ConcurrentHashMap<>();
     private final MutableLiveData<List<Timer>> cachedTimers = new MutableLiveData<>();
     private final ConcurrentHashMap<String, MutableLiveData<List<Timer>>> tagCaches = new ConcurrentHashMap<>();
-    private final AtomicBoolean isUpdating = new AtomicBoolean(false);
 
     TimerRepository(Application application) {
         AppDatabase db = AppDatabase.getDatabase(application);
@@ -24,12 +22,13 @@ public class TimerRepository {
         
         // Observe database changes and update cache
         this.allTimers.observeForever(timers -> {
-            if (timers != null && !isUpdating.get()) {
+            if (timers != null) {
                 timerCache.clear();
                 for (Timer timer : timers) {
                     timerCache.put(timer.id, timer);
                 }
-                updateCachedTimers();
+                List<Timer> timerList = new ArrayList<>(timerCache.values());
+                cachedTimers.postValue(timerList);
             }
         });
     }
@@ -66,7 +65,13 @@ public class TimerRepository {
     public void insert(Timer timer) {
         // Update cache immediately
         timerCache.put(timer.id, timer);
-        updateCachedTimers();
+        List<Timer> timers = new ArrayList<>(timerCache.values());
+        cachedTimers.postValue(timers);
+        
+        // Update tag caches in background
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            tagCaches.forEach((tag, liveData) -> updateTaggedTimers(tag, liveData));
+        });
         
         // Update database in background
         AppDatabase.databaseWriteExecutor.execute(() -> {
@@ -77,7 +82,13 @@ public class TimerRepository {
     public void update(Timer timer) {
         // Update cache immediately
         timerCache.put(timer.id, timer);
-        updateCachedTimers();
+        List<Timer> timers = new ArrayList<>(timerCache.values());
+        cachedTimers.postValue(timers);
+        
+        // Update tag caches in background
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            tagCaches.forEach((tag, liveData) -> updateTaggedTimers(tag, liveData));
+        });
         
         // Update database in background
         AppDatabase.databaseWriteExecutor.execute(() -> {
@@ -89,7 +100,14 @@ public class TimerRepository {
         // Update cache immediately
         Timer removedTimer = timerCache.remove(id);
         if (removedTimer != null) {
-            updateCachedTimers();
+            // Update main cache immediately
+            List<Timer> timers = new ArrayList<>(timerCache.values());
+            cachedTimers.postValue(timers);
+            
+            // Update tag caches in background
+            AppDatabase.databaseWriteExecutor.execute(() -> {
+                tagCaches.forEach((tag, liveData) -> updateTaggedTimers(tag, liveData));
+            });
         }
         
         // Update database in background
@@ -100,22 +118,12 @@ public class TimerRepository {
                 // If database operation fails, restore the cache
                 if (removedTimer != null) {
                     timerCache.put(id, removedTimer);
-                    updateCachedTimers();
+                    List<Timer> timers = new ArrayList<>(timerCache.values());
+                    cachedTimers.postValue(timers);
                 }
             }
         });
     }
 
-    private void updateCachedTimers() {
-        isUpdating.set(true);
-        try {
-            List<Timer> timers = new ArrayList<>(timerCache.values());
-            cachedTimers.postValue(timers);
-            
-            // Update all tag caches
-            tagCaches.forEach((tag, liveData) -> updateTaggedTimers(tag, liveData));
-        } finally {
-            isUpdating.set(false);
-        }
-    }
+
 }

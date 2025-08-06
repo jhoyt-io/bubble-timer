@@ -2,7 +2,6 @@ package io.jhoyt.bubbletimer.db;
 
 import android.app.Application;
 
-import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
@@ -45,12 +44,6 @@ public class ActiveTimerRepository {
         };
 
         this.allActiveTimersLiveData.observeForever(observer);
-    }
-
-    @Override
-    protected void finalize() throws Throwable {
-        super.finalize();
-        this.allActiveTimersLiveData.removeObserver(observer);
     }
 
     public Timer getById(String id) {

@@ -24,7 +24,7 @@ public class TimerListCollectionAdapter extends FragmentStateAdapter {
         Log.d("TimerListCollectionAdapter", "Creating fragment for position " + position + " with tag: " + tags.get(position));
         
         // Check if this is the "Shared Timers" tab
-        if (position == 0 && tags.get(position).equals("SHARED")) {
+        if (position == 1 && tags.get(position).equals("SHARED")) {
             return new SharedTimerListFragment();
         }
         

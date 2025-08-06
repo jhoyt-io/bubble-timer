@@ -13,8 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TimerViewModel extends AndroidViewModel {
     private final TimerRepository repository;
-    private final MutableLiveData<Boolean> isDeleting = new MutableLiveData<>(false);
-    private final AtomicBoolean deletionInProgress = new AtomicBoolean(false);
+    // Removed unnecessary deletion tracking - UI updates immediately via repository cache
 
     public TimerViewModel(@NonNull Application application) {
         super(application);
@@ -35,28 +34,19 @@ public class TimerViewModel extends AndroidViewModel {
 
     public void insert(Timer timer) {
         Log.d("TimerViewModel", "Inserting timer: " + timer.title + " (id: " + timer.id + ")");
+        // Repository handles background execution
         repository.insert(timer);
     }
 
     public void update(Timer timer) {
         Log.d("TimerViewModel", "Updating timer: " + timer.title + " (id: " + timer.id + ")");
+        // Repository handles background execution
         repository.update(timer);
     }
 
     public void deleteById(int id) {
         Log.d("TimerViewModel", "Deleting timer with id: " + id);
-        if (deletionInProgress.compareAndSet(false, true)) {
-            try {
-                isDeleting.postValue(true);
-                repository.deleteById(id);
-            } finally {
-                isDeleting.postValue(false);
-                deletionInProgress.set(false);
-            }
-        }
-    }
-
-    public LiveData<Boolean> isDeleting() {
-        return isDeleting;
+        // Repository handles background execution and immediate UI updates
+        repository.deleteById(id);
     }
 }
