@@ -29,6 +29,7 @@ import com.amplifyframework.auth.cognito.AWSCognitoAuthSession;
 import com.amplifyframework.core.Amplify;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -38,11 +39,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import io.jhoyt.bubbletimer.db.ActiveTimerViewModel;
+import dagger.hilt.android.AndroidEntryPoint;
+import io.jhoyt.bubbletimer.ActiveTimerViewModel;
 import io.jhoyt.bubbletimer.db.Tag;
 import io.jhoyt.bubbletimer.db.TagViewModel;
 import io.jhoyt.bubbletimer.db.TimerViewModel;
+import io.jhoyt.bubbletimer.service.FcmTokenManager;
 
+@AndroidEntryPoint
 public class MainActivity extends AppCompatActivity {
     public static String MESSAGE_RECEIVER_ACTION = "main-activity-message-receiver";
     public static int NEW_TIMER_REQUEST = 0;
@@ -51,7 +55,7 @@ public class MainActivity extends AppCompatActivity {
     private Handler timerHandler;
     private Runnable updater;
 
-    private List<Timer> activeTimers;
+    private Set<Timer> activeTimers;
     private String userId;
 
     private ActiveTimerViewModel activeTimerViewModel;
@@ -59,7 +63,8 @@ public class MainActivity extends AppCompatActivity {
     private TagViewModel tagViewModel;
     
     private long lastAuthTokenRequest = 0;
-    private static final long AUTH_TOKEN_DEBOUNCE_MS = 5000; // 5 seconds
+    private static final long AUTH_TOKEN_DEBOUNCE_MS = 1000; // Reduced from 5000ms to 1000ms for better testing
+    private static final boolean BYPASS_THROTTLING_FOR_TESTING = true; // Set to false in production
 
     private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -68,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
 
             if (command.equals("sendAuthToken")) {
                 long currentTime = System.currentTimeMillis();
-                if (currentTime - lastAuthTokenRequest < AUTH_TOKEN_DEBOUNCE_MS) {
+                if (!BYPASS_THROTTLING_FOR_TESTING && currentTime - lastAuthTokenRequest < AUTH_TOKEN_DEBOUNCE_MS) {
                     Log.i("MainActivity", "Ignoring sendAuthToken request - too soon since last request");
                     return;
                 }
@@ -108,6 +113,14 @@ public class MainActivity extends AppCompatActivity {
                             String timerId = intent.getStringExtra("timerId");
                             if (timerId != null) {
                                 message.putExtra("timerId", timerId);
+                            }
+                            String timerName = intent.getStringExtra("timerName");
+                            if (timerName != null) {
+                                message.putExtra("timerName", timerName);
+                            }
+                            String sharerName = intent.getStringExtra("sharerName");
+                            if (sharerName != null) {
+                                message.putExtra("sharerName", sharerName);
                             }
                         }
 
@@ -155,6 +168,9 @@ public class MainActivity extends AppCompatActivity {
             requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
         
+        // Check and request full-screen intent permission for timer alarms
+        checkFullScreenIntentPermission();
+        
         this.timerHandler = new Handler();
         final ViewGroup activeTimerList = findViewById(R.id.activeTimerListFragment);
         this.updater = () -> {
@@ -199,7 +215,7 @@ public class MainActivity extends AppCompatActivity {
         startForegroundService(intent);
 
         this.activeTimerViewModel = new ViewModelProvider(this).get(ActiveTimerViewModel.class);
-        this.activeTimerViewModel.getAllActiveTimers().observe(this, timers -> {
+        this.activeTimerViewModel.getActiveTimers().observe(this, timers -> {
             this.activeTimers = timers;
         });
 
@@ -222,6 +238,9 @@ public class MainActivity extends AppCompatActivity {
         Amplify.Auth.getCurrentUser(authUser -> {
             Log.i("MainActivity", "Current user check - Username: " + authUser.getUsername());
             userId = authUser.getUsername();
+            
+            // Register FCM token for push notifications
+            registerFcmToken();
         }, error -> {
             Log.e("MainActivity", "Error getting current user on startup: ", error);
         });
@@ -256,11 +275,8 @@ public class MainActivity extends AppCompatActivity {
             Log.i("MainActivity", "userId still null - not starting timer");
         }
 
-        Timer timer = new Timer(userId, name, duration, tags);
-        timer.unpause();
-
-        // ActiveTimerViewModel handles background execution
-        this.activeTimerViewModel.insert(timer);
+        // ActiveTimerViewModel handles background execution and timer creation
+        this.activeTimerViewModel.startNewTimer(name, duration, userId);
     }
 
     public void deleteTimer(int id) {
@@ -289,6 +305,47 @@ public class MainActivity extends AppCompatActivity {
         Intent message = new Intent(ForegroundService.MESSAGE_RECEIVER_ACTION);
         message.putExtra("command", "hideOverlay");
         LocalBroadcastManager.getInstance(this).sendBroadcast(message);
+        
+        // Handle deep link from notification if present
+        handleDeepLinkFromIntent(getIntent());
+    }
+    
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleDeepLinkFromIntent(intent);
+    }
+    
+    private void handleDeepLinkFromIntent(Intent intent) {
+        if (intent == null) return;
+        
+        String action = intent.getStringExtra("action");
+        String timerId = intent.getStringExtra("timerId");
+        
+        if ("view_invitation".equals(action) && timerId != null) {
+            Log.i("MainActivity", "Handling deep link to view invitation for timer: " + timerId);
+            
+            // Navigate to SHARED tab to show pending invitations
+            navigateToSharedTab();
+            
+            // Clear the intent extras to prevent re-handling
+            intent.removeExtra("action");
+            intent.removeExtra("timerId");
+        }
+    }
+    
+    private void navigateToSharedTab() {
+        // Wait for ViewPager to be ready, then switch to SHARED tab (position 1)
+        ViewPager2 viewPager = findViewById(R.id.timerPager);
+        if (viewPager != null && viewPager.getAdapter() != null) {
+            // Switch to SHARED tab (position 1)
+            viewPager.setCurrentItem(1, true);
+            Log.i("MainActivity", "Navigated to SHARED tab for invitation viewing");
+        } else {
+            // If ViewPager isn't ready yet, try again after a short delay
+            new Handler().postDelayed(this::navigateToSharedTab, 100);
+        }
     }
 
     @Override
@@ -407,6 +464,51 @@ public class MainActivity extends AppCompatActivity {
 
     public String getUserId() {
         return userId;
+    }
+
+    /**
+     * Check if full-screen intent permission is granted and request it if needed
+     */
+    private void checkFullScreenIntentPermission() {
+        if (FullScreenIntentPermissionHelper.shouldShowPermissionExplanation(this)) {
+            // Show streamlined dialog for quicker access during development/reinstalls
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Enable Timer Alarms")
+                .setMessage("Timer alarms need permission to wake your screen when locked.\n\n" +
+                           "⚠️ Note: Android resets this permission on every app reinstall for security.")
+                .setPositiveButton("Open Settings", (dialog, which) -> {
+                    FullScreenIntentPermissionHelper.requestFullScreenIntentPermission(this);
+                })
+                .setNegativeButton("Skip", (dialog, which) -> {
+                    Log.i("MainActivity", "User skipped full-screen intent permission - alarms will use notifications only");
+                })
+                .setCancelable(true) // Allow users to dismiss easily
+                .show();
+        } else {
+            Log.d("MainActivity", "Full-screen intent permission already granted or not required");
+        }
+    }
+
+    /**
+     * Register FCM token with backend for push notifications
+     */
+    private void registerFcmToken() {
+        FirebaseMessaging.getInstance().getToken()
+                .addOnCompleteListener(task -> {
+                    if (!task.isSuccessful()) {
+                        Log.w("MainActivity", "Fetching FCM registration token failed", task.getException());
+                        return;
+                    }
+
+                    String token = task.getResult();
+                    if (token != null && !token.isEmpty()) {
+                        Log.i("MainActivity", "FCM token obtained: " + token);
+                        FcmTokenManager fcmTokenManager = new FcmTokenManager(this);
+                        fcmTokenManager.registerDeviceToken(token);
+                    } else {
+                        Log.w("MainActivity", "FCM token is null or empty");
+                    }
+                });
     }
 
     @Override

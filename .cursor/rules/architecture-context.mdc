@@ -1,0 +1,16 @@
+
+
+---
+description: "Architecture Context - Documentation and architectural patterns"
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Architecture Context
+
+- ALWAYS read @docs/ARCHITECTURE.md first for data flows and component responsibilities
+- Reference @docs/QUICK_REFERENCE.md for debugging commands and common patterns
+- Check @docs/FEATURE_EXTENSION_PATTERNS.md for guidance on extending core systems
+- Use the documentation to understand WebSocket, overlay, and sharing patterns before making changes
+- Key architecture points: ViewModel → ForegroundService broadcast, Repository observers, #~# delimiters, currentUserId in overlays
+- Watch @docs/demo-video.mov for visual understanding of user flows and expected behaviors. If you can't access the demo, view the screenshots in @docs/screenshots to get a sense of the UX.

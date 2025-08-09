@@ -55,7 +55,8 @@ public class TestDataFactoryTest {
         Timer timer = TestDataFactory.createTestTimer(null, Duration.ofMinutes(5));
         
         assertNotNull("Timer should not be null", timer);
-        assertNull("Name should be null", timer.getName());
+        // The factory provides a default name when null is passed
+        assertEquals("Should have default name", "Unknown Timer", timer.getName());
     }
 
     @Test
@@ -63,7 +64,8 @@ public class TestDataFactoryTest {
         Timer timer = TestDataFactory.createTestTimer("Test Timer", null);
         
         assertNotNull("Timer should not be null", timer);
-        assertNull("Duration should be null", timer.getTimerData().totalDuration);
+        // The factory provides a default duration when null is passed
+        assertEquals("Should have default duration", Duration.ZERO, timer.getTimerData().totalDuration);
     }
 
     @Test

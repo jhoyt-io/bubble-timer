@@ -5,8 +5,10 @@ import io.jhoyt.bubbletimer.db.ActiveTimer;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -148,7 +150,12 @@ public class TestDataFactory {
 
     public static ActiveTimer createSharedTimer(String... sharedUsers) {
         ActiveTimer activeTimer = createActiveTimer();
-        activeTimer.sharedWithString = String.join(",", sharedUsers);
+        // Include creator in sharedWithString to match Timer behavior
+        // Creator should always be first in the list
+        List<String> allSharedUsers = new ArrayList<>();
+        allSharedUsers.add("test-user"); // Add creator first
+        allSharedUsers.addAll(Arrays.asList(sharedUsers)); // Add other users
+        activeTimer.sharedWithString = String.join(",", allSharedUsers);
         return activeTimer;
     }
 

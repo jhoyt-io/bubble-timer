@@ -5,6 +5,7 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("kotlin-kapt")
     id("com.google.devtools.ksp")
+    id("com.google.gms.google-services")
 }
 
 // Apply test configuration
@@ -88,6 +89,9 @@ dependencies {
     testImplementation("com.google.dagger:hilt-android-testing:2.50")
     kaptTest("com.google.dagger:hilt-android-compiler:2.50")
     
+    // Robolectric for Android framework testing on JVM
+    testImplementation("org.robolectric:robolectric:4.11.1")
+    
     // Android Test Dependencies for Performance Tests
     testImplementation("androidx.test.ext:junit:1.1.5")
     testImplementation("androidx.test:runner:1.5.2")
@@ -96,6 +100,7 @@ dependencies {
     implementation("androidx.annotation:annotation:1.6.0")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     val room_version = "2.6.1"
 
     implementation("androidx.room:room-runtime:$room_version")
@@ -132,6 +137,11 @@ dependencies {
     
     // SwipeRefreshLayout for pull-to-refresh
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    
+    // Firebase Cloud Messaging for push notifications
+    implementation(platform("com.google.firebase:firebase-bom:32.7.2"))
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-analytics")
     
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")

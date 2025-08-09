@@ -1,0 +1,29 @@
+{
+    "project_info": {
+      "project_number": "259028451960",
+      "project_id": "bubble-timer",
+      "storage_bucket": "bubble-timer.firebasestorage.app"
+    },
+    "client": [
+      {
+        "client_info": {
+          "mobilesdk_app_id": "1:259028451960:android:959a12581d63e709f1638d",
+          "android_client_info": {
+            "package_name": "io.jhoyt.bubbletimer"
+          }
+        },
+        "oauth_client": [],
+        "api_key": [
+          {
+            "current_key": "AIzaSyCMnt1COsaqWKLweouyFr6f0S21G-hvqCE"
+          }
+        ],
+        "services": {
+          "appinvite_service": {
+            "other_platform_oauth_client": []
+          }
+        }
+      }
+    ],
+    "configuration_version": "1"
+  }

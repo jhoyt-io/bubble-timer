@@ -32,7 +32,9 @@ public class SharedTimerPersistenceTest {
         testTimer.shareWith("user1");
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 1 shared user", 1, sharedWith.size());
+        // Creator is automatically included, so we expect 2 users (creator + user1)
+        assertEquals("Should have 2 shared users (creator + user1)", 2, sharedWith.size());
+        assertTrue("Should contain creator", sharedWith.contains("test-user"));
         assertTrue("Should contain user1", sharedWith.contains("user1"));
     }
 
@@ -44,7 +46,9 @@ public class SharedTimerPersistenceTest {
         testTimer.shareWith("user3");
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 3 shared users", 3, sharedWith.size());
+        // Creator is automatically included, so we expect 4 users (creator + 3 users)
+        assertEquals("Should have 4 shared users (creator + 3 users)", 4, sharedWith.size());
+        assertTrue("Should contain creator", sharedWith.contains("test-user"));
         assertTrue("Should contain user1", sharedWith.contains("user1"));
         assertTrue("Should contain user2", sharedWith.contains("user2"));
         assertTrue("Should contain user3", sharedWith.contains("user3"));
@@ -57,7 +61,9 @@ public class SharedTimerPersistenceTest {
         testTimer.shareWith("user1"); // Duplicate
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 1 shared user (no duplicates)", 1, sharedWith.size());
+        // Creator is automatically included, so we expect 2 users (creator + user1, no duplicates)
+        assertEquals("Should have 2 shared users (creator + user1, no duplicates)", 2, sharedWith.size());
+        assertTrue("Should contain creator", sharedWith.contains("test-user"));
         assertTrue("Should contain user1", sharedWith.contains("user1"));
     }
 
@@ -67,7 +73,8 @@ public class SharedTimerPersistenceTest {
         testTimer.shareWith("");
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 0 shared users (empty string filtered out)", 0, sharedWith.size());
+        // When sharing with invalid user, no change occurs - creator is not automatically added
+        assertEquals("Should have 0 shared users (empty string filtered out, no creator auto-added)", 0, sharedWith.size());
         assertFalse("Should not contain empty string", sharedWith.contains(""));
     }
 
@@ -77,7 +84,8 @@ public class SharedTimerPersistenceTest {
         testTimer.shareWith(null);
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 0 shared users (null filtered out)", 0, sharedWith.size());
+        // When sharing with invalid user, no change occurs - creator is not automatically added
+        assertEquals("Should have 0 shared users (null filtered out, no creator auto-added)", 0, sharedWith.size());
         assertFalse("Should not contain null", sharedWith.contains(null));
     }
 
@@ -89,7 +97,9 @@ public class SharedTimerPersistenceTest {
         testTimer.shareWith("user_name");
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 3 shared users", 3, sharedWith.size());
+        // Creator is automatically included, so we expect 4 users (creator + 3 special users)
+        assertEquals("Should have 4 shared users (creator + 3 special users)", 4, sharedWith.size());
+        assertTrue("Should contain creator", sharedWith.contains("test-user"));
         assertTrue("Should contain email", sharedWith.contains("user@domain.com"));
         assertTrue("Should contain hyphen", sharedWith.contains("user-name"));
         assertTrue("Should contain underscore", sharedWith.contains("user_name"));
@@ -102,7 +112,9 @@ public class SharedTimerPersistenceTest {
         testTimer.shareWith(longUsername);
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 1 shared user", 1, sharedWith.size());
+        // Creator is automatically included, so we expect 2 users (creator + long username)
+        assertEquals("Should have 2 shared users (creator + long username)", 2, sharedWith.size());
+        assertTrue("Should contain creator", sharedWith.contains("test-user"));
         assertTrue("Should contain long username", sharedWith.contains(longUsername));
     }
 
@@ -114,7 +126,9 @@ public class SharedTimerPersistenceTest {
         testTimer.shareWith("пользователь");
         
         Set<String> sharedWith = testTimer.getSharedWith();
-        assertEquals("Should have 3 shared users", 3, sharedWith.size());
+        // Creator is automatically included, so we expect 4 users (creator + 3 unicode users)
+        assertEquals("Should have 4 shared users (creator + 3 unicode users)", 4, sharedWith.size());
+        assertTrue("Should contain creator", sharedWith.contains("test-user"));
         assertTrue("Should contain Chinese", sharedWith.contains("用户"));
         assertTrue("Should contain Spanish", sharedWith.contains("usuario"));
         assertTrue("Should contain Russian", sharedWith.contains("пользователь"));
@@ -131,6 +145,7 @@ public class SharedTimerPersistenceTest {
         
         assertEquals("Copied timer should have same number of shared users", 
             testTimer.getSharedWith().size(), copiedSharedWith.size());
+        assertTrue("Copied timer should contain creator", copiedSharedWith.contains("test-user"));
         assertTrue("Copied timer should contain user1", copiedSharedWith.contains("user1"));
         assertTrue("Copied timer should contain user2", copiedSharedWith.contains("user2"));
     }
@@ -162,8 +177,10 @@ public class SharedTimerPersistenceTest {
         Set<String> sharedWith = taggedTimer.getSharedWith();
         Set<String> timerTags = taggedTimer.getTags();
         
-        assertEquals("Should have 2 shared users", 2, sharedWith.size());
+        // Creator is automatically included, so we expect 3 users (creator + 2 users)
+        assertEquals("Should have 3 shared users (creator + 2 users)", 3, sharedWith.size());
         assertEquals("Should have 2 tags", 2, timerTags.size());
+        assertTrue("Should contain creator", sharedWith.contains("test-user"));
         assertTrue("Should contain user1", sharedWith.contains("user1"));
         assertTrue("Should contain user2", sharedWith.contains("user2"));
         assertTrue("Should contain work tag", timerTags.contains("work"));
@@ -182,9 +199,12 @@ public class SharedTimerPersistenceTest {
         Set<String> shortSharedWith = shortTimer.getSharedWith();
         Set<String> longSharedWith = longTimer.getSharedWith();
         
-        assertEquals("Short timer should have 1 shared user", 1, shortSharedWith.size());
-        assertEquals("Long timer should have 1 shared user", 1, longSharedWith.size());
+        // Creator is automatically included in both timers
+        assertEquals("Short timer should have 2 shared users (creator + user1)", 2, shortSharedWith.size());
+        assertEquals("Long timer should have 2 shared users (creator + user2)", 2, longSharedWith.size());
+        assertTrue("Short timer should contain creator", shortSharedWith.contains("test-user"));
         assertTrue("Short timer should contain user1", shortSharedWith.contains("user1"));
+        assertTrue("Long timer should contain creator", longSharedWith.contains("test-user"));
         assertTrue("Long timer should contain user2", longSharedWith.contains("user2"));
     }
 

@@ -338,7 +338,7 @@ public class TimerListFragment extends Fragment {
                         TimerView timerView = existingView.findViewById(R.id.timer);
                         timerView.setTimer(new io.jhoyt.bubbletimer.Timer(new TimerData(
                                 String.valueOf(timer.id),
-                                userId,
+                                userId != null ? userId : "unknown",
                                 timer.title,
                                 timer.duration,
                                 null,

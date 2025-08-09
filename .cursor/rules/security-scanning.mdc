@@ -1,0 +1,143 @@
+# Security Scanning Rule
+
+## Purpose
+Automated security scanning to detect sensitive credentials and prevent accidental exposure in public repositories.
+
+## Trigger
+When user asks for security scan, credential check, or mentions "sensitive data", "credentials", "secrets", "security audit", etc.
+
+## Actions to Perform
+
+### 1. Comprehensive Credential Search
+Search for common patterns of sensitive data:
+- AWS access keys: `AKIA[0-9A-Z]{16}`
+- GitHub tokens: `ghp_[a-zA-Z0-9]{36}`, `gho_[a-zA-Z0-9]{36}`, `ghu_[a-zA-Z0-9]{36}`, `ghs_[a-zA-Z0-9]{36}`, `ghr_[a-zA-Z0-9]{36}`
+- Private keys: `-----BEGIN PRIVATE KEY-----`, `-----BEGIN RSA PRIVATE KEY-----`
+- Database URLs: `mysql://`, `postgresql://`, `mongodb://`
+- API keys: `api_key`, `secret_key`, `access_key`
+- Passwords: `password`, `passwd`, `pwd`
+- Tokens: `token`, `auth_token`, `bearer_token`
+
+### 2. File Type Analysis
+Check for sensitive file types:
+- `.env` files
+- `.pem`, `.key`, `.crt` certificate files
+- `.jks`, `.keystore` keystore files
+- `.p12`, `.pfx` certificate files
+- Configuration files with hardcoded credentials
+
+### 3. Repository Structure Review
+- Check `.gitignore` files for proper exclusions
+- Review for accidentally committed sensitive files
+- Verify environment variable usage vs hardcoded values
+
+### 4. Security Assessment Report
+Provide a comprehensive report with:
+- ✅ Safe items (public API keys, endpoints, etc.)
+- ⚠️ Potential concerns
+- ❌ Critical issues found
+- 🔧 Recommended actions
+
+## Response Format
+
+```
+## 🔒 Security Scan Results
+
+### ✅ Safe Items
+[List of items that are safe to commit]
+
+### ⚠️ Potential Concerns
+[List of items that need attention]
+
+### ❌ Critical Issues
+[List of critical security issues found]
+
+### 🔧 Recommended Actions
+[Specific steps to address issues]
+
+### 📋 Security Checklist
+[Checklist for future reference]
+```
+
+## Security Best Practices to Enforce
+
+### ✅ Safe to Commit
+- Firebase `google-services.json` (public API keys)
+- Public API endpoints
+- Configuration files without secrets
+- Test data and mock credentials
+- Documentation with example patterns
+
+### ❌ Never Commit
+- Keystore files (`*.jks`, `*.keystore`)
+- Private keys (`*.pem`, `*.key`)
+- Environment files (`.env`, `.env.local`)
+- AWS access keys (AKIA...)
+- GitHub personal access tokens (ghp_...)
+- Database passwords
+- API secrets
+- FCM server keys
+
+## Automated Actions
+
+When critical issues are found:
+1. Update `.gitignore` files to exclude sensitive file types
+2. Remove sensitive files from version control using `git rm --cached`
+3. Create or update `SECURITY.md` documentation
+4. Suggest implementation of GitHub Actions for secret scanning
+
+## Prevention Measures
+
+Recommend implementing:
+1. **GitHub Actions with Gitleaks or Detect-Secrets** - See `.github/workflows/security-scan.yml`
+2. **Pre-commit hooks with git-secrets** - Install and configure locally
+3. **GitHub Secret Scanning** - Enable in repository settings
+4. **Regular automated security audits** - Weekly scheduled scans
+5. **Custom Gitleaks configuration** - See `.gitleaks.toml` for project-specific rules
+
+## Example Commands to Run
+
+```bash
+# Search for AWS access keys
+grep -r "AKIA[0-9A-Z]{16}" . --exclude-dir=node_modules
+
+# Search for GitHub tokens
+grep -r "ghp_[a-zA-Z0-9]{36}" . --exclude-dir=node_modules
+
+# Check for .env files
+find . -name ".env*" -not -path "./node_modules/*"
+
+# Check for keystore files
+find . -name "*.jks" -o -name "*.keystore" -o -name "*.p12" -o -name "*.pfx"
+```
+
+## Integration with Development Workflow
+
+This rule should be triggered:
+- Before major releases
+- When adding new dependencies or services
+- When reviewing pull requests
+- When setting up new repositories
+- When user explicitly requests security review
+
+## Continuous Monitoring
+
+Suggest setting up:
+- **GitHub Actions for automated secret scanning** - Already configured in `.github/workflows/security-scan.yml`
+- **Pre-commit hooks for local validation** - Install git-secrets locally
+- **Regular security audits** - Weekly automated scans via GitHub Actions
+- **Automated alerts** - GitHub Security tab integration
+- **Custom allowlists** - Configured in `.gitleaks.toml` for project-specific exclusions
+
+## Files Created/Modified
+
+This rule has created the following security infrastructure:
+- `.cursor/rules/security-scanning.mdc` - This rule file
+- `.github/workflows/security-scan.yml` - Automated GitHub Actions workflow
+- `.gitleaks.toml` - Custom Gitleaks configuration
+- `SECURITY.md` - Security documentation and guidelines
+- Enhanced `.gitignore` files - Comprehensive security exclusions
+description:
+globs:
+alwaysApply: false
+---

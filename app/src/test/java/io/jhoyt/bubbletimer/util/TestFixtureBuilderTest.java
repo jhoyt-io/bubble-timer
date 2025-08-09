@@ -49,7 +49,8 @@ public class TestFixtureBuilderTest {
         assertEquals("Should have correct total duration", Duration.ofMinutes(15), activeTimer.totalDuration);
         assertEquals("Should have correct remaining duration", Duration.ofMinutes(15), activeTimer.remainingDurationWhenPaused);
         assertNotNull("Should have timer end", activeTimer.timerEnd);
-        assertEquals("Should have correct shared with string", "user1,user2", activeTimer.sharedWithString);
+        // Creator is automatically included, so we expect "test-user,user1,user2"
+        assertEquals("Should have correct shared with string", "test-user,user1,user2", activeTimer.sharedWithString);
         assertTrue("Should contain work tag", activeTimer.tagsString.contains("work"));
         assertTrue("Should contain important tag", activeTimer.tagsString.contains("important"));
     }

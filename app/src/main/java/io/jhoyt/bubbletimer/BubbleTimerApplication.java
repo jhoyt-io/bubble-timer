@@ -25,5 +25,7 @@ public class BubbleTimerApplication extends Application {
         } catch (AmplifyException e) {
             Log.e("BubbleTimerApplication", "Could not initialize Amplify", e);
         }
+        
+        Log.i("BubbleTimerApplication", "Application initialized - using new modular overlay system");
     }
 } 

@@ -1,0 +1,21 @@
+
+
+---
+description: "Android Development Standards - Best practices for Android development"
+globs: ["app/**/*.java", "app/**/*.kt", "app/**/*.xml"]
+alwaysApply: false
+---
+
+# Android Development Standards
+
+When working in Android app directory:
+- Follow Android development best practices
+- Use proper error handling and null safety
+- Maintain consistent code formatting and naming conventions
+- Write clear, self-documenting code with appropriate comments
+- Ensure proper resource management and lifecycle handling
+- Write unit tests for new functionality
+- Ensure existing tests continue to pass after changes
+- Test both success and error scenarios
+- Focus on testing critical user flows and edge cases
+- Use Android testing frameworks appropriately (JUnit, Espresso, etc.)

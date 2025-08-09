@@ -19,11 +19,11 @@ public class Converters {
 
     @TypeConverter
     public static LocalDateTime fromString(String value) {
-        return value == null ? null : LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        return (value == null || value.isEmpty()) ? null : LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
 
     @TypeConverter
     public static String localDateTimeToString(LocalDateTime localDateTime) {
-        return localDateTime == null ? null : localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        return localDateTime == null ? "" : localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
 }

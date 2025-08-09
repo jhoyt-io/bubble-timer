@@ -15,7 +15,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Database(
-    version = 6,
+    version = 8,
     entities = {Timer.class, ActiveTimer.class, Tag.class, SharedTimer.class},
     autoMigrations = {
         @AutoMigration(from = 1, to = 2),
@@ -23,6 +23,8 @@ import java.util.concurrent.Executors;
         @AutoMigration(from = 3, to = 4),
         @AutoMigration(from = 4, to = 5),
         @AutoMigration(from = 5, to = 6),
+        @AutoMigration(from = 6, to = 7),
+        @AutoMigration(from = 7, to = 8),
     }
 )
 @TypeConverters({Converters.class})

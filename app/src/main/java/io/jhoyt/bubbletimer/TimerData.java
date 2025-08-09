@@ -25,13 +25,13 @@ public class TimerData {
             LocalDateTime timerEnd,
             Set<String> tags
     ) {
-        this.id = id;
-        this.userId = userId;
-        this.name = name;
-        this.totalDuration = totalDuration;
+        this.id = id != null ? id : "unknown";
+        this.userId = userId != null ? userId : "unknown";
+        this.name = name != null ? name : "Unknown Timer";
+        this.totalDuration = totalDuration != null ? totalDuration : java.time.Duration.ZERO;
         this.remainingDurationWhenPaused = remainingDurationWhenPaused;
         this.timerEnd = timerEnd;
-        this.tags = tags;
+        this.tags = tags != null ? tags : java.util.Set.of();
     }
 
     @Override

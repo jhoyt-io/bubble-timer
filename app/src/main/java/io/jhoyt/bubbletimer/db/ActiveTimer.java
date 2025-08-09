@@ -34,4 +34,7 @@ public class ActiveTimer {
 
     @ColumnInfo(name = "tagsString", defaultValue = "")
     public String tagsString;
+
+    @ColumnInfo(name = "sharedBy", defaultValue = "")
+    public String sharedBy;
 }

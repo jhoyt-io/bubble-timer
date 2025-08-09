@@ -1,0 +1,17 @@
+
+---
+description: "Documentation Standards - Guidelines for maintaining project documentation"
+globs: ["docs/**/*", "README.md", "**/*.md"]
+alwaysApply: false
+---
+
+# Documentation Standards
+
+When working with documentation files:
+- Keep architecture documentation up to date
+- Document any new patterns or architectural decisions
+- Maintain clear API documentation for public interfaces
+- Update README files when adding new features or changing setup requirements
+- Use clear, concise language in documentation
+- Include code examples where appropriate
+- Keep documentation synchronized with code changes

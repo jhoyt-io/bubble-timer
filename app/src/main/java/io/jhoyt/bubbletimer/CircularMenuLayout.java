@@ -86,10 +86,50 @@ public class CircularMenuLayout {
         }
 
         // Draw originator info if timer is shared
-        if (timer != null && currentUserId != null && timer.getUserId() != null && !timer.getUserId().equals(currentUserId)) {
-            textPaint.setTextSize(textSize / 3.0f);
-            String originatorText = "👤" + timer.getUserId();
-            canvas.drawText(originatorText, centerX, centerY + (mainCircleRadius / 2.5f), textPaint);
+        if (timer != null && currentUserId != null && timer.getSharedBy() != null && 
+            !timer.getSharedBy().trim().isEmpty() && !timer.getSharedBy().equals(currentUserId)) {
+            
+            // Adjust text size and positioning based on circle size
+            float originatorTextSize = textSize / 3.0f;
+            float originatorY;
+            
+            if (mainCircleRadius < 150) { // Small bubble
+                // For small bubbles, position text higher and make it slightly larger for better readability
+                originatorTextSize = textSize / 3.5f; // Slightly larger text
+                originatorY = centerY + (mainCircleRadius / 2.2f); // Higher position
+            } else { // Large bubble
+                originatorY = centerY + (mainCircleRadius / 2.5f);
+            }
+            
+            textPaint.setTextSize(originatorTextSize);
+            
+            // Truncate long usernames for small bubbles to prevent text overflow
+            String sharedByUser = timer.getSharedBy();
+            if (mainCircleRadius < 150 && sharedByUser.length() > 10) {
+                sharedByUser = sharedByUser.substring(0, 8) + "...";
+            }
+            String originatorText = "👤" + sharedByUser;
+            
+            // Debug logging
+            android.util.Log.d("CircularMenuLayout", "Drawing shared by info:");
+            android.util.Log.d("CircularMenuLayout", "  mainCircleRadius: " + mainCircleRadius);
+            android.util.Log.d("CircularMenuLayout", "  centerX: " + centerX + ", centerY: " + centerY);
+            android.util.Log.d("CircularMenuLayout", "  originatorY: " + originatorY);
+            android.util.Log.d("CircularMenuLayout", "  originalUser: " + timer.getSharedBy());
+            android.util.Log.d("CircularMenuLayout", "  truncatedUser: " + sharedByUser);
+            android.util.Log.d("CircularMenuLayout", "  originatorText: " + originatorText);
+            android.util.Log.d("CircularMenuLayout", "  textSize: " + originatorTextSize);
+            
+            canvas.drawText(originatorText, centerX, originatorY, textPaint);
+        } else {
+            // Debug logging for when not showing
+            android.util.Log.d("CircularMenuLayout", "Not drawing shared by info:");
+            android.util.Log.d("CircularMenuLayout", "  timer: " + (timer != null ? "not null" : "null"));
+            android.util.Log.d("CircularMenuLayout", "  currentUserId: " + currentUserId);
+            android.util.Log.d("CircularMenuLayout", "  timer.getSharedBy(): " + (timer != null ? timer.getSharedBy() : "N/A"));
+            if (timer != null && timer.getSharedBy() != null && currentUserId != null) {
+                android.util.Log.d("CircularMenuLayout", "  sharedBy.equals(currentUserId): " + timer.getSharedBy().equals(currentUserId));
+            }
         }
     }
 

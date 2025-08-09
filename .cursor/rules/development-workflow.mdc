@@ -1,0 +1,41 @@
+
+---
+description: "Development Workflow - Code analysis, testing, and documentation practices"
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Development Workflow
+
+- Focus on code analysis, debugging, and file modifications
+- Provide clear explanations of issues and solutions
+- Always build and test locally after making changes, and fix any new errors introduced
+- Add tests to cover new functionality, or existing functionality that might be impacted
+- Document changes and reasoning in docs/ for large enough changes
+- Be sure to clean up any unused code introduced with each change
+
+# Testing Guidelines
+
+- **Test Performance**: Current test suite runs in ~7 seconds, which meets the <10 second target
+- **Test Caching**: Gradle caches test results - first run takes ~7s, subsequent runs are ~1s until code changes
+- **Timer Sharing**: When testing timer sharing functionality, remember that the creator is automatically included in the `sharedWith` list via `TimerSharingValidator.ensureCreatorIncluded()`
+- **Test Expectations**: Tests should expect creator + explicitly shared users, not just explicitly shared users
+- **Test Data**: Use `TestFixtureBuilder` and `TestDataFactory` which properly include the creator in shared user lists
+
+# Test Suite Structure
+
+- **Fast Tests** (`MemoryLeakTest.java`): Optimized for development loops (~7s total)
+  - Reduced sleep times (100ms instead of 2000ms)
+  - Smaller test datasets (5-10 items instead of 25-500)
+  - Removed slow concurrent operations
+- **Slow Tests** (`MemoryLeakTestSlow.java`): Comprehensive tests for CI/CD
+  - Full memory leak testing with large datasets
+  - Concurrent operations testing
+  - Run separately when needed
+
+# Common Test Patterns
+
+- When testing `Timer.shareWith()`, expect the creator to be automatically added
+- When creating test data with shared users, the creator should be first in the list
+- Test expectations should account for the automatic creator inclusion behavior
+- Use fast tests for development, slow tests for comprehensive validation

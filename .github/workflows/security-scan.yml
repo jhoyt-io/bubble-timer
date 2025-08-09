@@ -1,0 +1,126 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Full history for better scanning
+    
+    - name: Run Gitleaks
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        config-path: .gitleaks.toml
+        report-format: sarif
+        report-path: gitleaks-report.sarif
+        exit-code: 1
+    
+    - name: Upload Gitleaks results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: gitleaks-report.sarif
+    
+    - name: Run Detect-Secrets
+      uses: perryzjc/detect-secrets-action@v1.1.1
+      with:
+        path: .
+        baseline: .secrets.baseline
+    
+    - name: Check for sensitive files
+      run: |
+        echo "Checking for sensitive file types..."
+        
+        # Check for .env files
+        if find . -name ".env*" -not -path "./node_modules/*" -not -path "./.git/*"; then
+          echo "⚠️  Found .env files - review if they should be committed"
+          find . -name ".env*" -not -path "./node_modules/*" -not -path "./.git/*"
+        fi
+        
+        # Check for keystore files
+        if find . -name "*.jks" -o -name "*.keystore" -o -name "*.p12" -o -name "*.pfx"; then
+          echo "❌ Found keystore files - these should not be committed"
+          find . -name "*.jks" -o -name "*.keystore" -o -name "*.p12" -o -name "*.pfx"
+          exit 1
+        fi
+        
+        # Check for private keys
+        if find . -name "*.pem" -o -name "*.key" -o -name "*.crt"; then
+          echo "❌ Found certificate/private key files - review if they should be committed"
+          find . -name "*.pem" -o -name "*.key" -o -name "*.crt"
+        fi
+        
+        echo "✅ Sensitive file check completed"
+    
+    - name: Check .gitignore
+      run: |
+        echo "Checking .gitignore configuration..."
+        
+        # Check if .gitignore exists
+        if [ ! -f .gitignore ]; then
+          echo "❌ No .gitignore file found"
+          exit 1
+        fi
+        
+        # Check for common sensitive file patterns in .gitignore
+        patterns=("*.jks" "*.keystore" "*.p12" "*.pfx" "*.pem" "*.key" ".env" "*.log")
+        missing_patterns=()
+        
+        for pattern in "${patterns[@]}"; do
+          if ! grep -q "$pattern" .gitignore; then
+            missing_patterns+=("$pattern")
+          fi
+        done
+        
+        if [ ${#missing_patterns[@]} -gt 0 ]; then
+          echo "⚠️  Missing patterns in .gitignore:"
+          printf '%s\n' "${missing_patterns[@]}"
+        else
+          echo "✅ .gitignore looks good"
+        fi
+    
+    - name: Check for hardcoded credentials
+      run: |
+        echo "Checking for hardcoded credentials..."
+        
+        # Check for AWS access keys
+        if grep -r "AKIA[0-9A-Z]\{16\}" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=build; then
+          echo "❌ Found potential AWS access keys"
+          grep -r "AKIA[0-9A-Z]\{16\}" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=build
+          exit 1
+        fi
+        
+        # Check for GitHub tokens
+        if grep -r "ghp_[a-zA-Z0-9]\{36\}\|gho_[a-zA-Z0-9]\{36\}\|ghu_[a-zA-Z0-9]\{36\}\|ghs_[a-zA-Z0-9]\{36\}\|ghr_[a-zA-Z0-9]\{36\}" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=build; then
+          echo "❌ Found potential GitHub tokens"
+          grep -r "ghp_[a-zA-Z0-9]\{36\}\|gho_[a-zA-Z0-9]\{36\}\|ghu_[a-zA-Z0-9]\{36\}\|ghs_[a-zA-Z0-9]\{36\}\|ghr_[a-zA-Z0-9]\{36\}" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=build
+          exit 1
+        fi
+        
+        echo "✅ No hardcoded credentials found"
+    
+    - name: Security summary
+      if: always()
+      run: |
+        echo "🔒 Security scan completed"
+        echo "📋 Next steps:"
+        echo "  - Review any warnings above"
+        echo "  - Check GitHub Security tab for detailed results"
+        echo "  - Update .gitignore if needed"
+        echo "  - Consider implementing pre-commit hooks"

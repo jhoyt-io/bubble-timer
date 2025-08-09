@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
         android:name=".BubbleTimerApplication"
@@ -38,12 +40,31 @@
             android:exported="false"
             android:label="EditTimerActivity"
             android:theme="@style/Theme.BubbleTimer" />
+        <activity
+            android:name=".TimerAlarmActivity"
+            android:exported="false"
+            android:label="TimerAlarmActivity"
+            android:theme="@style/Theme.BubbleTimer"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true" />
 
         <service
             android:name=".ForegroundService"
             android:enabled="true"
             android:exported="true"
             android:foregroundServiceType="specialUse" />
+
+        <service
+            android:name=".service.BubbleTimerFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".service.NotificationActionReceiver"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

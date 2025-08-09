@@ -17,6 +17,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import io.jhoyt.bubbletimer.utils.TimerSharingValidator;
+
 public class Timer {
     @SerializedName("id")
     private String id;
@@ -39,6 +41,9 @@ public class Timer {
     @SerializedName("sharedWith")
     private Set<String> sharedWith;
 
+    @SerializedName("sharedBy")
+    private String sharedBy;
+
     private TimerData timerData;
 
     public Timer() {
@@ -48,17 +53,24 @@ public class Timer {
     public Timer(TimerData timerData, Set<String> sharedWith) {
         this.timerData = timerData;
         this.sharedWith = sharedWith;
+        this.sharedBy = null; // Default to null for non-shared timers
+    }
+
+    public Timer(TimerData timerData, Set<String> sharedWith, String sharedBy) {
+        this.timerData = timerData;
+        this.sharedWith = sharedWith;
+        this.sharedBy = sharedBy;
     }
 
     public Timer(String userId, String name, Duration duration, Set<String> tags) {
         this(new TimerData(
                 String.valueOf(UUID.randomUUID()),
-                userId,
-                name,
-                duration,
-                duration,
+                userId != null ? userId : "unknown",
+                name != null ? name : "Unknown Timer",
+                duration != null ? duration : java.time.Duration.ZERO,
+                duration != null ? duration : java.time.Duration.ZERO,
                 null,
-                tags
+                tags != null ? tags : new HashSet<>()
         ), new HashSet<>());
     }
 
@@ -83,7 +95,7 @@ public class Timer {
     }
 
     public Timer copy() {
-        return new Timer(this.timerData.copy(), new HashSet<>(this.getSharedWith()));
+        return new Timer(this.timerData.copy(), new HashSet<>(this.getSharedWith()), this.sharedBy);
     }
 
     public static Timer timerFromJson(JSONObject jsonTimer) throws JSONException {
@@ -169,26 +181,49 @@ public class Timer {
     }
 
     public void setSharedWith(Set<String> sharedWith) {
-        // Filter out empty strings and null values
-        Set<String> filteredSharedWith = sharedWith.stream()
-                .filter(s -> s != null && !s.trim().isEmpty())
-                .map(String::trim)
-                .collect(java.util.stream.Collectors.toSet());
-        
-        this.sharedWith = Collections.unmodifiableSet(filteredSharedWith);
-    }
-
-    public void shareWith(String userName) {
-        // Don't add empty strings or null values
-        if (userName == null || userName.trim().isEmpty()) {
+        if (sharedWith == null) {
+            this.sharedWith = Collections.unmodifiableSet(new HashSet<>());
             return;
         }
         
-        Set<String> shareWith = new HashSet<>();
-        shareWith.addAll(this.sharedWith);
-        shareWith.add(userName.trim());
+        try {
+            // Use TimerSharingValidator to clean and validate the set
+            Set<String> cleanedSharedWith = TimerSharingValidator.cleanSharedWithSet(sharedWith);
+            Set<String> validatedSharedWith = TimerSharingValidator.ensureCreatorIncluded(cleanedSharedWith, this.getUserId());
+            
+            // Validate the final set
+            if (!TimerSharingValidator.isValidSharedWithSet(validatedSharedWith, this.getUserId())) {
+                System.err.println("Warning: Invalid sharedWith set provided to Timer.setSharedWith() for timer: " + this.getId());
+                // Use cleaned set as fallback
+                validatedSharedWith = TimerSharingValidator.cleanSharedWithSet(validatedSharedWith);
+            }
+            
+            this.sharedWith = Collections.unmodifiableSet(validatedSharedWith);
+        } catch (Exception e) {
+            System.err.println("Error in Timer.setSharedWith() for timer " + this.getId() + ": " + e.getMessage());
+            // Fallback to empty set
+            this.sharedWith = Collections.unmodifiableSet(new HashSet<>());
+        }
+    }
 
-        this.sharedWith = Collections.unmodifiableSet(shareWith);
+    public void shareWith(String userName) {
+        if (!TimerSharingValidator.isValidUserId(userName)) {
+            return; // Don't add invalid user names
+        }
+        
+        try {
+            Set<String> shareWith = new HashSet<>();
+            shareWith.addAll(this.sharedWith);
+            shareWith.add(userName.trim());
+            
+            // Use TimerSharingValidator to ensure creator is included
+            shareWith = TimerSharingValidator.ensureCreatorIncluded(shareWith, this.getUserId());
+            
+            this.sharedWith = Collections.unmodifiableSet(shareWith);
+        } catch (Exception e) {
+            System.err.println("Error in Timer.shareWith() for timer " + this.getId() + ": " + e.getMessage());
+            // Keep existing sharedWith set on error
+        }
     }
 
     public String[] getFriendNames() {
@@ -211,6 +246,14 @@ public class Timer {
 
     public String getUserId() {
         return userId != null ? userId : (timerData != null ? timerData.userId : null);
+    }
+
+    public String getSharedBy() {
+        return sharedBy;
+    }
+
+    public void setSharedBy(String sharedBy) {
+        this.sharedBy = sharedBy;
     }
 
     public void addTime(Duration duration) {
@@ -239,12 +282,18 @@ public class Timer {
             return;
         }
 
+        Duration remainingDuration = getRemainingDuration();
+        if (remainingDuration == null) {
+            // If we can't calculate remaining duration, use total duration
+            remainingDuration = timerData.totalDuration;
+        }
+
         this.timerData = new TimerData(
                 timerData.id,
                 timerData.userId,
                 timerData.name,
                 timerData.totalDuration,
-                getRemainingDuration(),
+                remainingDuration,
                 null,
                 timerData.tags
         );

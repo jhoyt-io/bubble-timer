@@ -26,6 +26,7 @@ public class TimerView extends View {
     public static final int MODE_AUTO = -1;
     public static final int MODE_OVERLAY = 0;
     public static final int MODE_LIST_ITEM = 1;
+    public static final int MODE_ALARM = 2;
 
     public interface OnModeChangeListener {
         void onModeChanged(boolean isSmallMode);
@@ -256,6 +257,13 @@ public class TimerView extends View {
             centerX = SMALL_CIRCLE_RADIUS;
             centerY = SMALL_CIRCLE_RADIUS;
             menuLayout = new CircularMenuLayout(centerX, centerY, mainRadius, buttonRadius, timer, currentUserId);
+        } else if (mode == MODE_ALARM) {
+            // Alarm mode: large circle in center, no radial buttons
+            centerX = getWidth() / 2.0f;
+            centerY = getHeight() / 2.0f;
+            mainRadius = LARGE_CIRCLE_RADIUS;
+            buttonRadius = 0; // No buttons in alarm mode
+            menuLayout = new CircularMenuLayout(centerX, centerY, mainRadius, buttonRadius, timer, currentUserId);
         } else if (inShareMenu) {
             centerX = getWidth() / 2.0f;
             centerY = getHeight() / 2.0f;
@@ -342,7 +350,7 @@ public class TimerView extends View {
             menuLayout.drawButtons(canvas);
         } else {
             menuLayout.drawMainCircle(canvas, sweepAngle, durationText, timer.getName(), textSize);
-            if (mode != MODE_LIST_ITEM) {
+            if (mode != MODE_LIST_ITEM && mode != MODE_ALARM) {
                 menuLayout.drawButtons(canvas);
             }
         }

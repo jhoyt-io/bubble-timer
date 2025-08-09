@@ -160,7 +160,14 @@ public class TestFixtureBuilder {
         activeTimer.totalDuration = duration;
         activeTimer.remainingDurationWhenPaused = duration;
         activeTimer.timerEnd = startTime.plus(duration);
-        activeTimer.sharedWithString = String.join(",", sharedUsers);
+        
+        // Include creator in sharedWithString to match Timer behavior
+        // Creator should always be first in the list
+        List<String> allSharedUsers = new ArrayList<>();
+        allSharedUsers.add(userId); // Add creator first
+        allSharedUsers.addAll(sharedUsers); // Add other users
+        activeTimer.sharedWithString = String.join(",", allSharedUsers);
+        
         activeTimer.tagsString = String.join(",", tags);
         return activeTimer;
     }

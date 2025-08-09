@@ -12,6 +12,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,8 +39,8 @@ public class WebsocketManager {
     private static final String TAG = "WebsocketManager";
     private static final int MAX_RECONNECT_ATTEMPTS = 10; // Limit reconnection attempts
     private static final long RECONNECT_DELAY_MS = 5000; // 5 seconds
-    private static final long PING_INTERVAL_MS = 15000; // Send ping every 15 seconds
-    private static final long PONG_TIMEOUT_MS = 5000; // Wait 5 seconds for pong response
+    private static final long PING_INTERVAL_MS = 30000; // Send ping every 30 seconds (increased for emulator stability)
+    private static final long PONG_TIMEOUT_MS = 15000; // Wait 15 seconds for pong response (increased for emulator latency)
     private static final int MAX_QUEUE_SIZE = 1000; // Increased from 100 to handle bursts of messages
     private static final long QUEUE_CHECK_INTERVAL_MS = 5000; // Check queue every 5 seconds
 
@@ -143,10 +144,18 @@ public class WebsocketManager {
                         // Only check pong timeout if we've received at least one pong
                         if (hasReceivedPong) {
                             long timeSinceLastPong = System.currentTimeMillis() - lastPongTime;
-                            if (timeSinceLastPong > PONG_TIMEOUT_MS) {
-                                Log.w(TAG, "No pong received in " + timeSinceLastPong + "ms, forcing reconnection");
+                            // Be more lenient on emulators due to network latency
+                            boolean isEmulator = android.os.Build.MODEL.contains("sdk") || 
+                                               android.os.Build.MODEL.contains("google_sdk") ||
+                                               android.os.Build.MODEL.contains("emulator");
+                            long effectiveTimeout = isEmulator ? PONG_TIMEOUT_MS * 2 : PONG_TIMEOUT_MS;
+                            
+                            if (timeSinceLastPong > effectiveTimeout) {
+                                Log.w(TAG, "No pong received in " + timeSinceLastPong + "ms (timeout: " + effectiveTimeout + "ms), forcing reconnection");
                                 setConnectionState(ConnectionState.RECONNECTING);
                                 attemptReconnect();
+                            } else {
+                                Log.d(TAG, "Pong check OK - last pong was " + timeSinceLastPong + "ms ago (timeout: " + effectiveTimeout + "ms)");
                             }
                         } else {
                             Log.d(TAG, "Waiting for first pong response (sent ping at " + timestamp + ")");
@@ -183,6 +192,20 @@ public class WebsocketManager {
 
     private void upsertLocalTimerList(Timer timer) {
         List<Timer> timers = this.activeTimerRepository.getAllActiveTimers().getValue();
+
+        // CRITICAL: Ensure creator is always included in sharedWith list
+        // This fixes the WebSocket connection detection issue
+        Set<String> sharedWith = new HashSet<>(timer.getSharedWith());
+        String creatorUserId = timer.getUserId();
+        if (creatorUserId != null && !creatorUserId.trim().isEmpty() && !sharedWith.isEmpty()) {
+            // If this timer has a sharedWith list, ensure the creator is included
+            if (!sharedWith.contains(creatorUserId)) {
+                sharedWith.add(creatorUserId);
+                timer.setSharedWith(sharedWith);
+                Log.i(TAG, "Added creator '" + creatorUserId + "' to sharedWith list for timer " + timer.getId() + 
+                      ". Complete list: " + sharedWith);
+            }
+        }
 
         int i=0;
         for (; i<timers.size(); i++) {
@@ -314,6 +337,18 @@ public class WebsocketManager {
         Log.i(TAG, "Device info - Build.MANUFACTURER: " + android.os.Build.MANUFACTURER);
         Log.i(TAG, "Device info - Build.PRODUCT: " + android.os.Build.PRODUCT);
         
+        // Detect if running on emulator
+        boolean isEmulator = android.os.Build.MODEL.contains("sdk") || 
+                            android.os.Build.MODEL.contains("google_sdk") ||
+                            android.os.Build.MODEL.contains("emulator") ||
+                            android.os.Build.MANUFACTURER.equals("Google") && android.os.Build.MODEL.contains("sdk");
+        Log.i(TAG, "Running on emulator: " + isEmulator);
+        
+        if (isEmulator) {
+            // Adjust timeouts for emulator
+            Log.i(TAG, "Emulator detected - using relaxed timing for ping/pong and connectivity tests");
+        }
+        
         // Test basic internet connectivity
         try {
             java.net.InetAddress.getByName("8.8.8.8");
@@ -444,22 +479,30 @@ public class WebsocketManager {
         Log.i(TAG, "  DeviceId header: " + deviceId);
         Log.i(TAG, "  URL: " + websocketEndpoint);
 
-        // Add connection timeout handler
+        // Add connection timeout handler with emulator-specific timeout
         final Handler timeoutHandler = new Handler();
         final Runnable timeoutRunnable = new Runnable() {
             @Override
             public void run() {
                 if (isConnecting.get()) {
-                    Log.e(TAG, "WebSocket connection timeout after 15 seconds");
+                    boolean isEmulator = android.os.Build.MODEL.contains("sdk") || 
+                                       android.os.Build.MODEL.contains("google_sdk") ||
+                                       android.os.Build.MODEL.contains("emulator");
+                    long timeoutMs = isEmulator ? 30000 : 15000; // 30s for emulator, 15s for device
+                    Log.e(TAG, "WebSocket connection timeout after " + timeoutMs + "ms (emulator: " + isEmulator + ")");
                     isConnecting.set(false);
                     setConnectionState(ConnectionState.DISCONNECTED);
                     if (messageListener != null) {
-                        messageListener.onFailure("Connection timeout");
+                        messageListener.onFailure("Connection timeout after " + timeoutMs + "ms");
                     }
                 }
             }
         };
-        timeoutHandler.postDelayed(timeoutRunnable, 15000); // 15 second timeout
+        boolean isEmulator = android.os.Build.MODEL.contains("sdk") || 
+                           android.os.Build.MODEL.contains("google_sdk") ||
+                           android.os.Build.MODEL.contains("emulator");
+        long timeoutMs = isEmulator ? 30000 : 15000;
+        timeoutHandler.postDelayed(timeoutRunnable, timeoutMs);
 
         Request webSocketRequest = new Request.Builder()
                 .header("Authorization", authToken)
@@ -497,6 +540,24 @@ public class WebsocketManager {
                 Log.e(TAG, "  Response body: " + (response != null ? response.body() : "null"));
                 Log.e(TAG, "  Throwable: " + t.getMessage());
                 Log.e(TAG, "  Throwable type: " + t.getClass().getSimpleName());
+                Log.e(TAG, "  Throwable stack trace: ", t);
+                
+                // Enhanced error analysis for emulators
+                boolean isEmulator = android.os.Build.MODEL.contains("sdk") || 
+                                   android.os.Build.MODEL.contains("google_sdk") ||
+                                   android.os.Build.MODEL.contains("emulator");
+                
+                if (isEmulator) {
+                    Log.e(TAG, "  Emulator detected - common network issues:");
+                    Log.e(TAG, "    - DNS resolution can be slow/unreliable");
+                    Log.e(TAG, "    - Network proxy configuration may interfere");
+                    Log.e(TAG, "    - Cold boot recommended if persistent failures");
+                    
+                    if (t.getMessage() != null && t.getMessage().contains("failed to connect")) {
+                        Log.e(TAG, "    - Consider using 10.0.2.2 for localhost on emulator");
+                    }
+                }
+                
                 isConnecting.set(false);
                 totalConnectionAttempts++;
                 
@@ -683,14 +744,14 @@ public class WebsocketManager {
         sendMessage(webSocketRequestString);
     }
 
-    public void sendStopTimerToWebsocket(String timerId, Set<String> sharedWith) {
+    public void sendStopTimerToWebsocket(Timer timer) {
         if (currentState != ConnectionState.CONNECTED) {
             Log.w(TAG, "Cannot send stop: WebSocket not connected");
             return;
         }
 
         JSONArray shareWithArray = new JSONArray();
-        sharedWith.forEach(shareWithArray::put);
+        timer.getSharedWith().forEach(shareWithArray::put);
 
         String webSocketRequestString = null;
         try {
@@ -699,7 +760,8 @@ public class WebsocketManager {
                     .put("data", new JSONObject()
                             .put("type", "stopTimer")
                             .put("shareWith", shareWithArray)
-                            .put("timerId", timerId)
+                            .put("timerId", timer.getId())
+                            .put("timer", fixFrigginTimer(timer))
                     )
                     .toString();
         } catch (Exception e) {

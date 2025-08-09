@@ -43,6 +43,10 @@ public class SharedTimer {
     @Nullable
     public String sharedBy;
     
+    @ColumnInfo(name = "sharedWith")
+    @Nullable
+    public String sharedWith; // Comma-separated list of all users this timer is shared with
+    
     @ColumnInfo(name = "createdAt")
     @Nullable
     public LocalDateTime createdAt;

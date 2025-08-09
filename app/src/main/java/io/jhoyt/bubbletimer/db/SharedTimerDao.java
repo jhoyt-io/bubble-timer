@@ -15,6 +15,9 @@ public interface SharedTimerDao {
     @Query("SELECT * FROM shared_timers ORDER BY createdAt DESC")
     LiveData<List<SharedTimer>> getAllSharedTimers();
     
+    @Query("SELECT * FROM shared_timers ORDER BY createdAt DESC")
+    List<SharedTimer> getAllSharedTimersSync();
+    
     @Query("SELECT * FROM shared_timers WHERE status = :status ORDER BY createdAt DESC")
     LiveData<List<SharedTimer>> getSharedTimersByStatus(String status);
     
@@ -41,4 +44,7 @@ public interface SharedTimerDao {
     
     @Query("DELETE FROM shared_timers WHERE status = :status")
     void deleteByStatus(String status);
+    
+    @Query("DELETE FROM shared_timers")
+    void deleteAll();
 } 

@@ -12,7 +12,7 @@ import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
-import io.jhoyt.bubbletimer.db.ActiveTimerViewModel;
+import io.jhoyt.bubbletimer.ActiveTimerViewModel;
 
 public class ActiveTimerListFragment extends Fragment {
 
@@ -33,7 +33,7 @@ public class ActiveTimerListFragment extends Fragment {
         final LinearLayout listLayout = view.findViewById(R.id.activeTimerList);
 
         final ActiveTimerViewModel activeTimerViewModel = new ViewModelProvider(requireActivity()).get(ActiveTimerViewModel.class);
-        activeTimerViewModel.getAllActiveTimers().observe(requireActivity(), timers -> {
+        activeTimerViewModel.getActiveTimers().observe(requireActivity(), timers -> {
             listLayout.removeAllViews();
 
             timers.forEach(timer -> {
@@ -48,7 +48,7 @@ public class ActiveTimerListFragment extends Fragment {
                 layout.findViewById(R.id.stopButton).setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        activeTimerViewModel.deleteById(timer.getId());
+                        activeTimerViewModel.stopTimer(timer.getId());
                     }
                 });
             });
