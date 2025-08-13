@@ -78,6 +78,15 @@ git secrets --register-aws
 
 # Scan before commit
 git secrets --scan
+
+# Install detect-secrets for additional scanning
+pip install detect-secrets
+
+# Create baseline (first time only)
+detect-secrets scan . --baseline .secrets.baseline --update
+
+# Run detect-secrets scan
+detect-secrets scan . --baseline .secrets.baseline
 ```
 
 #### Manual Security Audit

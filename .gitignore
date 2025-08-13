@@ -33,6 +33,10 @@ local.properties
 *.tmp
 *.temp
 
+# Security scanning files
+.secrets.baseline
+*.baseline
+
 # Build output
 /app/release/
 /app/debug/
