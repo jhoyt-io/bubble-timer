@@ -13,6 +13,13 @@ id = "bubble-timer-custom"
 description = "Custom rules for Bubble Timer project"
 regex = '''(?i)(api_key|secret_key|access_key|private_key|password|token|credential)['"]?\s*[:=]\s*['"]?[a-zA-Z0-9\-_]{20,}['"]?'''
 tags = ["key", "Bubble Timer"]
+[rules.allowlist]
+paths = [
+    "**/test/**",
+    "**/docs/**",
+    "**/*.md",
+    "**/*.txt"
+]
 
 # Ignore Firebase public API keys (these are safe to commit)
 [[rules]]
@@ -20,10 +27,9 @@ id = "firebase-api-key"
 description = "Firebase API keys (public, safe to commit)"
 regex = '''AIza[0-9A-Za-z\-_]{35}'''
 tags = ["key", "Firebase"]
-allowlist = [
-    "google-services.json",
-    "firebase",
-    "firebase config"
+[rules.allowlist]
+paths = [
+    "google-services.json"
 ]
 
 # Ignore AWS API Gateway URLs (public endpoints)
@@ -32,10 +38,12 @@ id = "aws-api-gateway-url"
 description = "AWS API Gateway URLs (public endpoints)"
 regex = '''https://[a-zA-Z0-9\-_]+\.execute-api\.[a-zA-Z0-9\-_]+\.amazonaws\.com'''
 tags = ["AWS", "API Gateway"]
-allowlist = [
-    "execute-api.us-east-1.amazonaws.com",
-    "api gateway",
-    "endpoint"
+[rules.allowlist]
+paths = [
+    "**/*.md",
+    "**/*.txt",
+    "**/*.yml",
+    "**/*.yaml"
 ]
 
 # Ignore test data and mock credentials
@@ -44,11 +52,12 @@ id = "test-credentials"
 description = "Test and mock credentials"
 regex = '''(?i)(test|mock|example|sample|dummy|fake)_(key|token|password|secret)['"]?\s*[:=]\s*['"]?[a-zA-Z0-9\-_]+['"]?'''
 tags = ["test", "mock"]
-allowlist = [
-    "test",
-    "mock",
-    "example",
-    "sample"
+[rules.allowlist]
+paths = [
+    "**/test/**",
+    "**/tests/**",
+    "**/*test*",
+    "**/*Test*"
 ]
 
 # Ignore documentation examples
@@ -57,11 +66,11 @@ id = "documentation-examples"
 description = "Documentation examples with placeholder values"
 regex = '''(?i)(your_|placeholder_|example_)(key|token|password|secret)['"]?\s*[:=]\s*['"]?[a-zA-Z0-9\-_]+['"]?'''
 tags = ["documentation", "example"]
-allowlist = [
-    "docs",
-    "documentation",
-    "example",
-    "placeholder"
+[rules.allowlist]
+paths = [
+    "**/docs/**",
+    "**/*.md",
+    "**/*.txt"
 ]
 
 # Standard secret patterns to detect
@@ -119,37 +128,4 @@ description = "Database URL with credentials"
 regex = '''(mysql|postgresql|mongodb)://[a-zA-Z0-9\-_]+:[a-zA-Z0-9\-_]+@[a-zA-Z0-9\-_.]+:[0-9]+/[a-zA-Z0-9\-_]+'''
 tags = ["key", "Database"]
 
-# Allowlist patterns for known safe files
-[allowlist]
-description = "Allowlist for known safe files and patterns"
-files = [
-    "google-services.json",
-    "SECURITY.md",
-    "README.md",
-    "*.md",
-    "*.txt",
-    "*.toml",
-    "*.yml",
-    "*.yaml"
-]
 
-# Allowlist for specific patterns
-[[allowlist.rules]]
-description = "Firebase configuration files"
-regex = '''google-services\.json'''
-
-[[allowlist.rules]]
-description = "Documentation files"
-regex = '''\.md$'''
-
-[[allowlist.rules]]
-description = "Configuration files"
-regex = '''\.(toml|yml|yaml)$'''
-
-[[allowlist.rules]]
-description = "Test files"
-regex = '''test|spec|mock|example'''
-
-[[allowlist.rules]]
-description = "Public API endpoints"
-regex = '''execute-api\.us-east-1\.amazonaws\.com'''

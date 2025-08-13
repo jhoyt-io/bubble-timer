@@ -28,14 +28,24 @@ jobs:
       with:
         config-path: .gitleaks.toml
         report-format: sarif
-        report-path: gitleaks-report.sarif
+        report-path: results.sarif
         exit-code: 1
+    
+    - name: Check if SARIF file exists
+      if: always()
+      run: |
+        if [ -f results.sarif ]; then
+          echo "✅ SARIF file exists, will upload to GitHub Security tab"
+        else
+          echo "⚠️  SARIF file not found, skipping upload"
+        fi
     
     - name: Upload Gitleaks results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
-        sarif_file: gitleaks-report.sarif
+        sarif_file: results.sarif
+      continue-on-error: true
     
     - name: Run Detect-Secrets (Custom Implementation)
       run: |
